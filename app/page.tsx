@@ -1,46 +1,201 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import {
+  FileText,
+  RefreshCw,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+  Settings,
+  Save,
+  Layers,
+} from "lucide-react";
+import Mascot from "@/components/Mascot";
 import InputForm from "@/components/InputForm";
 import OutputPanel from "@/components/OutputPanel";
+import Toast from "@/components/Toast";
+import ResetConfirmModal from "@/components/ResetConfirmModal";
 import { FormInput, GenerateResult, INITIAL_FORM } from "./types";
 
+type AppStatus = "input" | "generating" | "output";
+
 const STORAGE_KEY = "sns-content-generator-draft";
+
+// --- Sub-components ---
+
+function Header() {
+  return (
+    <header className="border-b-4 border-black bg-yellow-400 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Mascot size="sm" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-pink-500 border-2 border-black rounded-full animate-ping" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-black tracking-tight">
+              SNS投稿生成アシスタント
+            </h1>
+            <p className="text-xs font-bold text-black/70 hidden sm:block">
+              爆速でバズるコンテンツをまとめて作成！
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-white border-2 border-black rounded-xl font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all">
+            <Layers size={16} />
+            テンプレート
+          </button>
+          <button className="hidden md:flex items-center gap-1.5 px-4 py-2 bg-white border-2 border-black rounded-xl font-black text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all">
+            <Save size={16} />
+            保存
+          </button>
+          <button className="p-2 bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all">
+            <Settings size={20} />
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function ProgressBar({ status }: { status: AppStatus }) {
+  const steps = [
+    { id: "input", label: "入力", icon: FileText },
+    { id: "generating", label: "生成", icon: RefreshCw },
+    { id: "output", label: "完了", icon: CheckCircle2 },
+  ] as const;
+
+  return (
+    <div className="max-w-xl mx-auto py-10 px-4">
+      <div className="relative flex justify-between">
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-black -translate-y-1/2 z-0" />
+        {steps.map((step) => {
+          const isActive = status === step.id;
+          const isCompleted =
+            (status === "generating" && step.id === "input") ||
+            (status === "output" && step.id !== "output");
+          const Icon = step.icon;
+
+          return (
+            <div key={step.id} className="relative z-10 flex flex-col items-center gap-3">
+              <div
+                className={`w-14 h-14 rounded-2xl border-4 border-black flex items-center justify-center transition-all duration-300 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] ${
+                  isActive
+                    ? "bg-pink-500 text-white scale-110"
+                    : isCompleted
+                    ? "bg-cyan-400 text-black"
+                    : "bg-white text-black"
+                }`}
+              >
+                <Icon
+                  size={24}
+                  className={isActive && step.id === "generating" ? "animate-spin" : ""}
+                />
+              </div>
+              <span
+                className={`text-sm font-black uppercase tracking-tighter ${
+                  isActive ? "text-pink-600" : "text-black"
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function UsageGuide() {
+  return (
+    <div className="flex flex-col md:flex-row items-center gap-6 mb-8">
+      <Mascot message="こんにちは！私が投稿作成をお手伝いするよ！情報を入力してね" />
+      <div className="flex-1 bg-cyan-100 border-4 border-black rounded-2xl p-6 flex flex-wrap gap-6 items-center justify-center text-sm font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-pink-500 border-2 border-black text-white flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            1
+          </span>
+          <span>情報をコピペ！</span>
+        </div>
+        <ChevronRight size={20} className="text-black hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-indigo-500 border-2 border-black text-white flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            2
+          </span>
+          <span>ボタンをポチッ！</span>
+        </div>
+        <ChevronRight size={20} className="text-black hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-yellow-400 border-2 border-black text-black flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+            3
+          </span>
+          <span>コピーして投稿！</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NoticeBox() {
+  return (
+    <div className="bg-yellow-100 border-4 border-black rounded-3xl p-5 flex gap-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+      <div className="w-10 h-10 bg-yellow-400 border-2 border-black rounded-full flex items-center justify-center shrink-0">
+        <Info size={20} className="text-black" />
+      </div>
+      <div className="text-xs text-black leading-relaxed font-bold">
+        <p className="text-sm font-black mb-1">ご利用上の注意</p>
+        <p>
+          生成結果はAIによる提案です。必ず内容を調整・確認した上で投稿してください。特に実績や数値、規約に抵触する表現がないか最終チェックをお願いします。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// --- Main Page ---
 
 export default function Home() {
   const [form, setForm] = useState<FormInput>(INITIAL_FORM);
   const [result, setResult] = useState<GenerateResult | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<AppStatus>("input");
   const [error, setError] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: "" });
   const [hydrated, setHydrated] = useState(false);
 
-  // Restore from localStorage on mount
+  const showToast = useCallback((message: string) => {
+    setToast({ visible: true, message });
+    setTimeout(() => setToast({ visible: false, message: "" }), 2000);
+  }, []);
+
+  // Restore from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved) as FormInput;
-        setForm(parsed);
+        setForm(JSON.parse(saved) as FormInput);
       }
     } catch {
-      // ignore parse errors
+      // ignore
     }
     setHydrated(true);
   }, []);
 
-  // Save to localStorage on form change
+  // Save to localStorage
   useEffect(() => {
     if (!hydrated) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
     } catch {
-      // ignore quota errors
+      // ignore
     }
   }, [form, hydrated]);
 
   const handleGenerate = useCallback(async () => {
-    setLoading(true);
+    setStatus("generating");
     setError(null);
     setResult(null);
 
@@ -58,103 +213,113 @@ export default function Home() {
       }
 
       setResult(data as GenerateResult);
+      setStatus("output");
+      showToast("コンテンツを生成しました");
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
-          : "不明なエラーが発生しました。もう一度お試しください。"
+        e instanceof Error ? e.message : "不明なエラーが発生しました。もう一度お試しください。"
       );
-    } finally {
-      setLoading(false);
+      setStatus("input");
     }
-  }, [form]);
+  }, [form, showToast]);
 
-  const handleReset = () => {
+  const handleResetConfirm = () => {
+    setForm(INITIAL_FORM);
     setResult(null);
     setError(null);
+    setStatus("input");
+    setShowResetConfirm(false);
+    showToast("入力をリセットしました");
   };
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-violet-50/20 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Header */}
-      <header className="border-b border-gray-200/60 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <motion.div
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-3"
-          >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center shadow-md">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-100 leading-tight">
-                SNS Content Generator
-              </h1>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 hidden sm:block">
-                X投稿・カルーセル・画像プロンプト・Canva文字を一括生成
-              </p>
-            </div>
-          </motion.div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-medium">
-              Powered by Gemini
-            </span>
-          </div>
-        </div>
-      </header>
+  const handleCopy = useCallback(
+    (text: string) => {
+      navigator.clipboard.writeText(text);
+      showToast("クリップボードにコピーしました");
+    },
+    [showToast]
+  );
 
-      {/* Main content: 2 columns */}
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
+  return (
+    <div className="min-h-screen font-sans text-slate-900 pb-32 bg-slate-50">
+      <Header />
+
+      <main className="max-w-7xl mx-auto px-4 pt-4">
+        <ProgressBar status={status} />
+        <UsageGuide />
+
+        {/* 2 Column Grid: 5:7 matching reference */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left: Input */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="w-full lg:w-[440px] xl:w-[480px] lg:shrink-0"
-          >
-            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm p-5 sm:p-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-              <InputForm
-                form={form}
-                onChange={setForm}
-                onSubmit={handleGenerate}
-                onReset={handleReset}
-                loading={loading}
-              />
-            </div>
-          </motion.div>
+          <div className="lg:col-span-5 space-y-6">
+            <InputForm
+              form={form}
+              onChange={setForm}
+              onSubmit={handleGenerate}
+              onResetClick={() => setShowResetConfirm(true)}
+              loading={status === "generating"}
+              onToast={showToast}
+            />
+            <NoticeBox />
+          </div>
 
           {/* Right: Output */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex-1 min-w-0"
-          >
-            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm p-5 sm:p-6">
-              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
-                生成結果
-              </h2>
-              <OutputPanel
-                result={result}
-                loading={loading}
-                error={error}
-                onRetry={handleGenerate}
-              />
-            </div>
-          </motion.div>
+          <div className="lg:col-span-7 space-y-6">
+            <OutputPanel
+              result={result}
+              loading={status === "generating"}
+              error={error}
+              onRetry={handleGenerate}
+              onCopy={handleCopy}
+            />
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Toast */}
+      <Toast visible={toast.visible} message={toast.message} />
+
+      {/* Reset Confirm Modal */}
+      <ResetConfirmModal
+        isOpen={showResetConfirm}
+        onCancel={() => setShowResetConfirm(false)}
+        onConfirm={handleResetConfirm}
+      />
 
       {/* Footer */}
-      <footer className="border-t border-gray-200/60 dark:border-gray-800 mt-8">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-gray-400 dark:text-gray-600">
-          SNS Content Generator &mdash; Powered by Gemini API
+      <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-[10px] font-black">
+            <span className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-cyan-400 border border-black animate-pulse" />
+              SYSTEM ONLINE
+            </span>
+            <span className="bg-yellow-400 px-2 py-0.5 rounded border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
+              VERSION 1.0.0
+            </span>
+          </div>
+          <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+            Powered by Gemini API
+          </div>
         </div>
       </footer>
-    </main>
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #000;
+          border-radius: 0px;
+          border: 2px solid #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #333;
+        }
+      `}</style>
+    </div>
   );
 }

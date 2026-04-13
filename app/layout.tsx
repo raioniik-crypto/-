@@ -14,9 +14,9 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "AI Prompt Generator - 超精密プロンプト自動生成",
+  title: "SNS投稿生成アシスタント - X投稿・カルーセル・画像プロンプト一括生成",
   description:
-    "やりたいことを一言書くだけで、AIが質問・プロンプト生成・実行・検証まで全自動で行うWebアプリ",
+    "必要情報をコピペするだけで、X投稿本文・カルーセル文言・Gemini画像プロンプト・Canva用文字を自動生成するアプリ",
 };
 
 export default function RootLayout({

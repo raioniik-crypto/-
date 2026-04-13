@@ -3,357 +3,391 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  MousePointer2,
+  Layout,
+  Image as ImageIcon,
+  Type,
+  Copy,
+  Sparkles,
+  AlertCircle,
+} from "lucide-react";
+import {
   GenerateResult,
   OutputTab,
   OUTPUT_TAB_LABELS,
 } from "@/app/types";
-import CopyButton from "./CopyButton";
 
 interface OutputPanelProps {
   result: GenerateResult | null;
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  onCopy: (text: string) => void;
 }
 
-function Skeleton() {
-  return (
-    <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700 animate-pulse space-y-3"
-        >
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-full" />
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-5/6" />
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-4/6" />
-        </div>
-      ))}
-    </div>
-  );
-}
+const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: string }[] = [
+  { id: "xPosts", label: "X投稿", icon: MousePointer2, color: "bg-pink-500" },
+  { id: "carousel", label: "カルーセル", icon: Layout, color: "bg-cyan-400" },
+  { id: "imagePrompts", label: "画像プロンプト", icon: ImageIcon, color: "bg-yellow-400" },
+  { id: "canvaTexts", label: "Canva素材", icon: Type, color: "bg-indigo-500" },
+];
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-violet-100 dark:from-blue-900/30 dark:to-violet-900/30 flex items-center justify-center mb-4">
-        <svg
-          className="w-10 h-10 text-blue-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={1.5}
-            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-          />
-        </svg>
+    <motion.div
+      key="empty"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="h-full flex flex-col items-center justify-center text-center p-12"
+    >
+      <div className="w-24 h-24 bg-yellow-100 border-4 border-black rounded-3xl flex items-center justify-center text-yellow-600 mb-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <Sparkles size={48} />
       </div>
-      <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">
-        まだ生成結果がありません
+      <h3 className="text-2xl font-black mb-3">準備万端です！</h3>
+      <p className="text-slate-500 font-bold max-w-sm">
+        左側のフォームを入力して「まとめて生成」ボタンを押すと、ここにコンテンツが表示されます。
       </p>
-      <p className="text-sm text-gray-400 dark:text-gray-500">
-        左の入力欄を埋めて「コンテンツを一括生成」をクリック
-      </p>
-    </div>
+    </motion.div>
   );
 }
 
-function XPostsView({ result }: { result: GenerateResult }) {
+function LoadingState() {
+  return (
+    <motion.div
+      key="loading"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="h-full flex flex-col items-center justify-center p-12 space-y-8"
+    >
+      <div className="relative">
+        <div className="w-20 h-20 border-8 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+        <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600" size={32} />
+      </div>
+      <div className="space-y-4 w-full max-w-md">
+        <div className="h-4 bg-slate-100 rounded-full overflow-hidden border-2 border-black">
+          <motion.div
+            className="h-full bg-pink-500"
+            initial={{ width: "0%" }}
+            animate={{ width: "100%" }}
+            transition={{ duration: 15, ease: "easeInOut" }}
+          />
+        </div>
+        <p className="text-center font-black text-indigo-600 animate-pulse">
+          SNSに最適なコンテンツを錬成中...
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <motion.div
+      key="error"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="flex flex-col items-center justify-center text-center p-12"
+    >
+      <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center border-4 border-black mb-4">
+        <AlertCircle size={32} />
+      </div>
+      <h3 className="text-xl font-black mb-2">エラーが発生しました</h3>
+      <p className="text-sm text-slate-600 font-bold mb-6 max-w-md">{error}</p>
+      <button
+        onClick={onRetry}
+        className="px-6 py-3 bg-pink-500 text-white font-black rounded-xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+      >
+        再試行
+      </button>
+    </motion.div>
+  );
+}
+
+function XPostsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-black text-lg flex items-center gap-2">
+          <MousePointer2 size={24} className="text-pink-500" />
+          X（旧Twitter）投稿本文
+        </h3>
+      </div>
       {result.xPosts.map((post, i) => (
         <motion.div
           key={i}
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700"
+          className="p-6 bg-slate-50 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+            <span className="px-3 py-1 bg-pink-500 text-white text-xs font-black rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               {post.label}
             </span>
-            <CopyButton text={`${post.body}\n\n${post.hashtags.map((h) => `#${h}`).join(" ")}`} />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400">{post.body.length}文字</span>
+              <button
+                onClick={() => onCopy(`${post.body}\n\n${post.hashtags.map((h) => `#${h}`).join(" ")}`)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white rounded-xl font-black text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+              >
+                <Copy size={14} />
+                コピー
+              </button>
+            </div>
           </div>
-          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed mb-3">
-            {post.body}
-          </p>
+          <p className="font-bold leading-relaxed whitespace-pre-wrap mb-3">{post.body}</p>
           <div className="flex flex-wrap gap-1.5">
             {post.hashtags.map((tag, j) => (
-              <span
-                key={j}
-                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-              >
+              <span key={j} className="text-xs font-black px-2 py-0.5 bg-white border-2 border-black rounded-full">
                 #{tag}
               </span>
             ))}
           </div>
-          <div className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-            {post.body.length}文字
-          </div>
         </motion.div>
       ))}
     </div>
   );
 }
 
-function CarouselView({ result }: { result: GenerateResult }) {
-  return (
-    <div className="space-y-3">
-      {result.carousel.map((slide, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05 }}
-          className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400">
-              <span className="w-6 h-6 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-[11px]">
-                {slide.slideNumber}
-              </span>
-              スライド {slide.slideNumber}
-            </span>
-            <CopyButton
-              text={`${slide.title}\n${slide.subtitle}\n\n${slide.body}`}
-            />
-          </div>
-          <h4 className="font-bold text-gray-800 dark:text-gray-100 mb-0.5">
-            {slide.title}
-          </h4>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            {slide.subtitle}
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-            {slide.body}
-          </p>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function ImagePromptsView({ result }: { result: GenerateResult }) {
-  return (
-    <div className="space-y-4">
-      {result.imagePrompts.map((prompt, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-100 dark:border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-              {prompt.label}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
-                {prompt.aspectRatio}
-              </span>
-              <CopyButton text={prompt.mainPrompt} label="Main" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div>
-              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">
-                Main Prompt
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono leading-relaxed">
-                {prompt.mainPrompt}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">
-                Style / Sub Prompt
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded-lg p-3 font-mono leading-relaxed">
-                {prompt.subPrompt}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-red-500 dark:text-red-400 mb-1 uppercase tracking-wide">
-                Negative Prompt
-              </p>
-              <p className="text-sm text-gray-700 dark:text-gray-300 bg-red-50 dark:bg-red-900/20 rounded-lg p-3 font-mono leading-relaxed">
-                {prompt.negativePrompt}
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 flex justify-end">
-            <CopyButton
-              text={`Main: ${prompt.mainPrompt}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}\nAspect: ${prompt.aspectRatio}`}
-              label="全体コピー"
-            />
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function CanvaTextsView({ result }: { result: GenerateResult }) {
-  const sections: { key: keyof GenerateResult["canvaTexts"]; label: string; color: string }[] = [
-    { key: "coverTitles", label: "カバータイトル", color: "blue" },
-    { key: "subTitles", label: "サブタイトル", color: "violet" },
-    { key: "highlightWords", label: "強調ワード", color: "amber" },
-    { key: "descriptions", label: "説明文", color: "emerald" },
-    { key: "ctaTexts", label: "CTA文言", color: "rose" },
-    { key: "badgeShortTexts", label: "バッジ・ラベル", color: "cyan" },
-  ];
-
-  const colorMap: Record<string, string> = {
-    blue: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
-    violet: "bg-violet-50 border-violet-200 dark:bg-violet-900/20 dark:border-violet-800",
-    amber: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
-    emerald: "bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800",
-    rose: "bg-rose-50 border-rose-200 dark:bg-rose-900/20 dark:border-rose-800",
-    cyan: "bg-cyan-50 border-cyan-200 dark:bg-cyan-900/20 dark:border-cyan-800",
-  };
-
-  const labelColorMap: Record<string, string> = {
-    blue: "text-blue-700 dark:text-blue-300",
-    violet: "text-violet-700 dark:text-violet-300",
-    amber: "text-amber-700 dark:text-amber-300",
-    emerald: "text-emerald-700 dark:text-emerald-300",
-    rose: "text-rose-700 dark:text-rose-300",
-    cyan: "text-cyan-700 dark:text-cyan-300",
-  };
+function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+  const allText = result.carousel.map((s) => `${s.title}\n${s.subtitle}\n${s.body}`).join("\n\n---\n\n");
 
   return (
     <div className="space-y-4">
-      {sections.map(({ key, label, color }, i) => {
-        const items = result.canvaTexts[key];
-        return (
+      <div className="flex items-center justify-between">
+        <h3 className="font-black text-lg flex items-center gap-2">
+          <Layout size={24} className="text-cyan-500" />
+          カルーセル投稿用文言
+        </h3>
+        <button
+          onClick={() => onCopy(allText)}
+          className="flex items-center gap-2 px-4 py-2 bg-cyan-400 text-black rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+        >
+          <Copy size={18} />
+          全てコピー
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-4">
+        {result.carousel.map((slide, i) => (
           <motion.div
-            key={key}
+            key={i}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className={`rounded-xl p-4 border ${colorMap[color]}`}
+            className="p-5 bg-white border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
           >
             <div className="flex items-center justify-between mb-2">
-              <h4 className={`text-sm font-bold ${labelColorMap[color]}`}>
-                {label}
-              </h4>
-              <CopyButton text={items.join("\n")} />
+              <span className="text-xs font-black text-indigo-600 uppercase tracking-widest">
+                スライド {slide.slideNumber}
+              </span>
+              <button
+                onClick={() => onCopy(`${slide.title}\n${slide.subtitle}\n${slide.body}`)}
+                className="p-2 bg-white border-2 border-black rounded-lg hover:bg-slate-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+              >
+                <Copy size={14} />
+              </button>
             </div>
-            <div className="space-y-1.5">
-              {items.map((item, j) => (
-                <div
-                  key={j}
-                  className="flex items-center justify-between gap-2 group"
-                >
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {item}
-                  </p>
-                  <CopyButton
-                    text={item}
-                    label=""
-                    className="opacity-0 group-hover:opacity-100"
-                  />
-                </div>
-              ))}
-            </div>
+            <h4 className="font-black text-base mb-0.5">{slide.title}</h4>
+            <p className="text-sm font-bold text-slate-500 mb-2">{slide.subtitle}</p>
+            <p className="font-bold whitespace-pre-wrap">{slide.body}</p>
           </motion.div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
 
-export default function OutputPanel({
-  result,
-  loading,
-  error,
-  onRetry,
-}: OutputPanelProps) {
-  const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");
-
-  const tabs: OutputTab[] = ["xPosts", "carousel", "imagePrompts", "canvaTexts"];
-
-  if (error) {
-    return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center">
-        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center mx-auto mb-3">
-          <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
+function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+  return (
+    <div className="space-y-6">
+      <h3 className="font-black text-2xl flex items-center gap-3 italic">
+        <div className="p-2 bg-yellow-400 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+          <ImageIcon size={28} className="text-black" />
         </div>
-        <p className="text-red-700 dark:text-red-300 font-semibold mb-1">
-          エラーが発生しました
-        </p>
-        <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-          {error}
-        </p>
-        <button
-          onClick={onRetry}
-          className="px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
-        >
-          再試行
-        </button>
-      </div>
-    );
-  }
+        <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-600 to-pink-600">
+          Gemini IMAGE PROMPT
+        </span>
+      </h3>
 
-  if (loading) {
-    return (
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
-            AIがコンテンツを生成中...
+      {result.imagePrompts.map((prompt, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.1 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <span className="px-3 py-1 bg-yellow-400 text-black text-xs font-black rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              {prompt.label} ({prompt.aspectRatio})
+            </span>
+            <button
+              onClick={() =>
+                onCopy(
+                  `Main: ${prompt.mainPrompt}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}`
+                )
+              }
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+            >
+              <Copy size={16} />
+              コピー
+            </button>
+          </div>
+
+          {/* Main Prompt */}
+          <div className="relative group">
+            <div className="absolute -top-3 -left-1 bg-black text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
+              MAIN PROMPT
+            </div>
+            <div className="p-6 bg-white border-4 border-black rounded-2xl font-mono text-sm font-bold shadow-[6px_6px_0px_0px_rgba(253,224,71,1)] leading-relaxed">
+              {prompt.mainPrompt}
+            </div>
+          </div>
+
+          {/* Sub Prompt */}
+          <div className="relative group">
+            <div className="absolute -top-3 -left-1 bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
+              STYLE PROMPT
+            </div>
+            <div className="p-6 bg-white border-4 border-black rounded-2xl font-mono text-sm font-bold shadow-[6px_6px_0px_0px_rgba(99,102,241,0.3)] leading-relaxed">
+              {prompt.subPrompt}
+            </div>
+          </div>
+
+          {/* Negative Prompt */}
+          <div className="relative group">
+            <div className="absolute -top-3 -left-1 bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
+              NG PROMPT
+            </div>
+            <div className="p-6 bg-red-50 border-4 border-black rounded-2xl font-mono text-sm font-bold shadow-[6px_6px_0px_0px_rgba(239,68,68,0.2)] leading-relaxed flex items-center gap-4">
+              <AlertCircle size={20} className="text-red-500 shrink-0" />
+              <span>{prompt.negativePrompt}</span>
+            </div>
+          </div>
+        </motion.div>
+      ))}
+
+      <div className="p-5 bg-indigo-600 text-white border-4 border-black rounded-2xl flex items-center gap-4 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <div className="w-12 h-12 bg-white text-indigo-600 rounded-xl flex items-center justify-center border-2 border-black shrink-0">
+          <Sparkles size={24} />
+        </div>
+        <div>
+          <p className="text-sm font-black uppercase tracking-wider mb-0.5">Pro Tip!</p>
+          <p className="text-xs font-bold opacity-90">
+            このプロンプトを画像生成AIに入力して、最高のクリエイティブを手に入れよう！
           </p>
         </div>
-        <Skeleton />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  if (!result) {
-    return <EmptyState />;
-  }
+function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+  const sections: { key: keyof GenerateResult["canvaTexts"]; title: string; color: string }[] = [
+    { key: "coverTitles", title: "カバータイトル", color: "bg-pink-50" },
+    { key: "subTitles", title: "サブタイトル", color: "bg-cyan-50" },
+    { key: "highlightWords", title: "強調ワード", color: "bg-yellow-50" },
+    { key: "descriptions", title: "説明文", color: "bg-indigo-50" },
+    { key: "ctaTexts", title: "CTA文言", color: "bg-emerald-50" },
+    { key: "badgeShortTexts", title: "バッジ・ラベル", color: "bg-orange-50" },
+  ];
+
+  const allText = sections.map((s) => result.canvaTexts[s.key].join(", ")).join("\n");
 
   return (
-    <div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="font-black text-lg flex items-center gap-2">
+          <Type size={24} className="text-indigo-500" />
+          Canva 文字素材
+        </h3>
+        <button
+          onClick={() => onCopy(allText)}
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+        >
+          <Copy size={18} />
+          全てコピー
+        </button>
+      </div>
+
+      {sections.map(({ key, title, color }) => (
+        <div key={key} className="space-y-3">
+          <h4 className="text-sm font-black flex items-center gap-2">
+            <div className="w-2 h-4 bg-black rounded-full" />
+            {title}
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {result.canvaTexts[key].map((item, i) => (
+              <div
+                key={i}
+                className={`p-4 ${color} border-4 border-black rounded-xl flex items-center justify-between shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all group`}
+              >
+                <span className="font-black text-sm">{item}</span>
+                <button
+                  onClick={() => onCopy(item)}
+                  className="p-2 bg-white border-2 border-black rounded-lg hover:bg-slate-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function OutputPanel({ result, loading, error, onRetry, onCopy }: OutputPanelProps) {
+  const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");
+
+  return (
+    <div className="bg-white rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-4 border-black overflow-hidden flex flex-col min-h-[600px]">
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 overflow-x-auto">
-        {tabs.map((tab) => (
+      <div className="bg-indigo-50 border-b-4 border-black p-2 flex gap-2 overflow-x-auto custom-scrollbar">
+        {TABS.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 min-w-0 px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === tab
-                ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
-                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm border-2 border-black transition-all whitespace-nowrap shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+              activeTab === tab.id
+                ? `${tab.color} text-black translate-x-[1px] translate-y-[1px] shadow-none`
+                : "bg-white text-black hover:bg-white/80"
             }`}
           >
-            {OUTPUT_TAB_LABELS[tab]}
+            <tab.icon size={16} />
+            {OUTPUT_TAB_LABELS[tab.id]}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -5 }}
-          transition={{ duration: 0.15 }}
-        >
-          {activeTab === "xPosts" && <XPostsView result={result} />}
-          {activeTab === "carousel" && <CarouselView result={result} />}
-          {activeTab === "imagePrompts" && <ImagePromptsView result={result} />}
-          {activeTab === "canvaTexts" && <CanvaTextsView result={result} />}
-        </motion.div>
-      </AnimatePresence>
+      {/* Content */}
+      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-white">
+        <AnimatePresence mode="wait">
+          {error ? (
+            <ErrorState error={error} onRetry={onRetry} />
+          ) : loading ? (
+            <LoadingState />
+          ) : !result ? (
+            <EmptyState />
+          ) : (
+            <motion.div
+              key={`content-${activeTab}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              {activeTab === "xPosts" && <XPostsView result={result} onCopy={onCopy} />}
+              {activeTab === "carousel" && <CarouselView result={result} onCopy={onCopy} />}
+              {activeTab === "imagePrompts" && <ImagePromptsView result={result} onCopy={onCopy} />}
+              {activeTab === "canvaTexts" && <CanvaTextsView result={result} onCopy={onCopy} />}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
