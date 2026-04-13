@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "write|edit|create",
+        "command": "npx prettier --write \"$CLAUDE_FILE_PATH\" 2>/dev/null || true"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "bash",
+        "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(rm -rf /|git push.*--force.*main|drop database)' && echo 'BLOCK: 危険なコマンドを検出' && exit 1 || exit 0"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "npm run build 2>&1 | tail -20; echo \"EXIT_CODE: $?\""
+      }
+    ]
+  }
+}
