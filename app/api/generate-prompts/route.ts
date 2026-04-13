@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic();
+const client = new OpenAI();
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,14 +21,16 @@ export async function POST(req: NextRequest) {
       )
       .join("\n\n");
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
+          role: "system",
+          content: "あなたは世界最高のプロンプトエンジニアです。必ず指定されたJSON形式のみで回答してください。JSON以外の文字は含めないでください。",
+        },
+        {
           role: "user",
-          content: `あなたは世界最高のプロンプトエンジニアです。
-以下の情報をもとに、ユーザーの目的を達成するための超精密プロンプトを${promptCount}個生成してください。
+          content: `以下の情報をもとに、ユーザーの目的を達成するための超精密プロンプトを${promptCount}個生成してください。
 
 【ユーザーのやりたいこと】
 ${userInput}
@@ -43,14 +45,13 @@ ${answersText}
 - 各プロンプトに対して使用用途、推奨AI、注意事項を付けること
 - 日本語で回答すること
 
-以下のJSON形式で返してください（JSON以外の文字は含めないこと）：
+以下のJSON形式で返してください：
 {"prompts":[{"rank":1,"title":"プロンプトのタイトル","prompt":"プロンプト本文","usecase":"使用用途の説明","tips":{"ai":"推奨AIの名前","reason":"推奨理由"},"warning":"使用上の注意"}]}`,
         },
       ],
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const text = completion.choices[0]?.message?.content || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return NextResponse.json(

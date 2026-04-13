@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic();
+const client = new OpenAI();
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,14 +14,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
+          role: "system",
+          content: "あなたはプロンプトエンジニアリングの専門家です。必ず指定されたJSON形式のみで回答してください。JSON以外の文字は含めないでください。",
+        },
+        {
           role: "user",
-          content: `あなたはプロンプトエンジニアリングの専門家です。
-ユーザーが以下のようにやりたいことを入力しました：
+          content: `ユーザーが以下のようにやりたいことを入力しました：
 
 「${userInput}」
 
@@ -34,14 +36,13 @@ export async function POST(req: NextRequest) {
 - 質問は具体的で、プロンプト生成に直結する内容にすること
 - 日本語で回答すること
 
-以下のJSON形式で返してください（JSON以外の文字は含めないこと）：
+以下のJSON形式で返してください：
 {"questions":[{"q":"質問文","options":["選択肢1","選択肢2","選択肢3","選択肢4","その他（自由記入）"]}]}`,
         },
       ],
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const text = completion.choices[0]?.message?.content || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return NextResponse.json(

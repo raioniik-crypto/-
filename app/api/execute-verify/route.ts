@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic();
+const client = new OpenAI();
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,9 +15,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 1: Execute the prompt
-    const execution = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+    const execution = await client.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
@@ -26,18 +25,19 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    const executionResult =
-      execution.content[0].type === "text" ? execution.content[0].text : "";
+    const executionResult = execution.choices[0]?.message?.content || "";
 
     // Step 2: Verify the result
-    const verification = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
+    const verification = await client.chat.completions.create({
+      model: "gpt-4o",
       messages: [
         {
+          role: "system",
+          content: "あなたはAI出力の品質検証の専門家です。必ず指定されたJSON形式のみで回答してください。JSON以外の文字は含めないでください。",
+        },
+        {
           role: "user",
-          content: `あなたはAI出力の品質検証の専門家です。
-以下のプロンプトとその実行結果を検証してください。
+          content: `以下のプロンプトとその実行結果を検証してください。
 
 【使用したプロンプト】
 ${prompt}
@@ -45,7 +45,7 @@ ${prompt}
 【実行結果】
 ${executionResult}
 
-以下の3つの観点で検証し、JSON形式で返してください（JSON以外の文字は含めないこと）：
+以下の3つの観点で検証し、JSON形式で返してください：
 
 1. errors: 出力に含まれる矛盾、不完全な箇所、論理的な誤りのリスト
 2. sourceFlags: 事実確認が必要な箇所のリスト（「〜は要確認」の形式）
@@ -56,10 +56,7 @@ ${executionResult}
       ],
     });
 
-    const verifyText =
-      verification.content[0].type === "text"
-        ? verification.content[0].text
-        : "";
+    const verifyText = verification.choices[0]?.message?.content || "";
     const jsonMatch = verifyText.match(/\{[\s\S]*\}/);
 
     let verifyData = { errors: [], sourceFlags: [], suggestions: [] };
