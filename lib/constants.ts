@@ -4,8 +4,9 @@
 export const CREATOR = {
   name: "いさむ",
   tagline: "AI×ライティング×開発",
+  xHandle: "@isamu_freelance",
   links: [
-    { label: "X (Twitter)", url: "https://x.com/isamu_freelance", icon: "twitter" as const },
+    { label: "@isamu_freelance", url: "https://x.com/isamu_freelance", icon: "twitter" as const },
     { label: "ポートフォリオ", url: "https://isamu-portfolio.vercel.app", icon: "external" as const },
   ],
 };

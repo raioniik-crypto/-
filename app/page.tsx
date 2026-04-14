@@ -10,7 +10,6 @@ import {
   Settings,
   Save,
   Layers,
-  Smile,
   ExternalLink,
 } from "lucide-react";
 
@@ -172,32 +171,35 @@ function CreatorCard() {
     <div className="bg-white border-4 border-black rounded-3xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden group">
       <div className="absolute -top-6 -right-6 w-24 h-24 bg-pink-500/10 rounded-full group-hover:scale-150 transition-transform duration-700" />
       <div className="relative z-10 flex flex-col gap-4">
+        {/* Header */}
         <div className="flex items-center gap-3">
           <Mascot size="sm" className="shrink-0" />
           <div>
-            <h3 className="font-black text-lg leading-tight">CREATED BY</h3>
-            <p className="text-pink-600 font-black text-sm">
-              {CREATOR.name} | {CREATOR.tagline}
-            </p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Created by</p>
+            <h3 className="font-black text-lg leading-tight">{CREATOR.name}</h3>
+            <p className="text-pink-600 font-black text-xs">{CREATOR.tagline}</p>
           </div>
         </div>
+        {/* Links */}
         <div className="grid grid-cols-2 gap-3">
-          {CREATOR.links.map((link) => (
-            <a
-              key={link.label}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center justify-center gap-2 py-3 border-2 border-black rounded-xl font-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all ${
-                link.icon === "twitter"
-                  ? "bg-white hover:bg-cyan-50"
-                  : "bg-indigo-500 text-white hover:bg-indigo-600"
-              }`}
-            >
-              {link.icon === "twitter" ? <XLogoIcon size={16} /> : <ExternalLink size={16} />}
-              {link.label}
-            </a>
-          ))}
+          <a
+            href={CREATOR.links[0].url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 h-11 bg-black text-white border-2 border-black rounded-xl font-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+          >
+            <XLogoIcon size={14} />
+            {CREATOR.xHandle}
+          </a>
+          <a
+            href={CREATOR.links[1].url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 h-11 bg-indigo-500 text-white border-2 border-black rounded-xl font-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+          >
+            <ExternalLink size={14} />
+            ポートフォリオ
+          </a>
         </div>
       </div>
     </div>
@@ -364,30 +366,17 @@ export default function Home() {
               VERSION 1.0.0-POP
             </span>
           </div>
-          <div className="flex flex-col items-center md:items-end gap-2">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Creator</span>
-              <div className="flex items-center gap-2 px-3 py-1 bg-pink-50 border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <Smile size={12} className="text-pink-500" />
-                <span className="text-xs font-black">{CREATOR.name} | {CREATOR.tagline}</span>
-              </div>
-              <div className="flex gap-2">
-                {CREATOR.links.map((link) => (
-                  <a
-                    key={link.label}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
-                  >
-                    {link.icon === "twitter" ? <XLogoIcon size={12} /> : <ExternalLink size={12} />}
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-              Powered by Gemini API
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">by {CREATOR.name}</span>
+            <a
+              href={CREATOR.links[0].url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+            >
+              <XLogoIcon size={12} />
+            </a>
+            <span className="text-[9px] font-black text-slate-400">Powered by Gemini API</span>
           </div>
         </div>
       </footer>
