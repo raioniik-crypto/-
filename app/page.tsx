@@ -27,6 +27,7 @@ import OutputPanel from "@/components/OutputPanel";
 import Toast from "@/components/Toast";
 import ResetConfirmModal from "@/components/ResetConfirmModal";
 import TemplateModal from "@/components/TemplateModal";
+import SettingsModal from "@/components/SettingsModal";
 import { FormInput, GenerateResult, INITIAL_FORM, AdjustTarget } from "./types";
 import { CREATOR, MASCOT_MESSAGES } from "@/lib/constants";
 
@@ -36,7 +37,7 @@ const STORAGE_KEY = "sns-content-generator-draft";
 
 // --- Sub-components ---
 
-function Header({ onOpenTemplates }: { onOpenTemplates: () => void }) {
+function Header({ onOpenTemplates, onOpenSettings }: { onOpenTemplates: () => void; onOpenSettings: () => void }) {
   return (
     <header className="border-b-4 border-black bg-yellow-400 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
@@ -69,7 +70,10 @@ function Header({ onOpenTemplates }: { onOpenTemplates: () => void }) {
             <Save size={16} />
             保存
           </button>
-          <button className="p-2 bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all">
+          <button
+            onClick={onOpenSettings}
+            className="p-2 bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+          >
             <Settings size={20} />
           </button>
         </div>
@@ -226,6 +230,7 @@ export default function Home() {
   const [mascotMessage, setMascotMessage] = useState(MASCOT_MESSAGES.idle);
   const [adjusting, setAdjusting] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -367,7 +372,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen font-sans text-slate-900 pb-32 bg-slate-50">
-      <Header onOpenTemplates={() => setShowTemplateModal(true)} />
+      <Header onOpenTemplates={() => setShowTemplateModal(true)} onOpenSettings={() => setShowSettingsModal(true)} />
 
       <main className="max-w-7xl mx-auto px-4 pt-4">
         <ProgressBar status={status} />
@@ -424,6 +429,16 @@ export default function Home() {
           setMascotMessage(MASCOT_MESSAGES.templateApplied);
         }}
         onToast={showToast}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onToast={showToast}
+        onAuthChange={() => {
+          // refresh page state if needed
+        }}
       />
 
       {/* Footer */}

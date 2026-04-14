@@ -3,6 +3,9 @@ import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { z } from "zod";
 import { xPostSchema, imagePromptSchema, canvaTextsSchema } from "@/lib/schemas";
 import { AdjustTarget } from "@/app/types";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { getBalance, consumeCredits } from "@/lib/credits";
+import { CREDIT_COSTS } from "@/lib/billing";
 
 const PRIMARY_MODEL = "gemini-2.5-flash";
 const FALLBACK_MODEL = "gemini-2.5-flash-lite";
@@ -99,6 +102,26 @@ const validators: Record<AdjustTarget, z.ZodType> = {
 
 export async function POST(request: NextRequest) {
   try {
+    // --- Auth & Credit check ---
+    const supabase = createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "ログインが必要です。", requireAuth: true },
+        { status: 401 }
+      );
+    }
+
+    const balance = await getBalance(user.id);
+    const cost = CREDIT_COSTS.adjust;
+    if (balance < cost) {
+      return NextResponse.json(
+        { error: `クレジットが不足しています（必要: ${cost}、残高: ${balance}）`, insufficientCredits: true },
+        { status: 402 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -166,6 +189,9 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       );
     }
+
+    // Consume credits on success only
+    await consumeCredits(user.id, cost, "adjust", crypto.randomUUID());
 
     return NextResponse.json({ target, data: validated.data });
   } catch (error) {

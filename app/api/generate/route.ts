@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { generateResultSchema } from "@/lib/schemas";
 import { FormInput, FORM_FIELD_LABELS } from "@/app/types";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { getBalance, consumeCredits } from "@/lib/credits";
+import { CREDIT_COSTS } from "@/lib/billing";
 
 // ==========================================
 // モデル設定
@@ -228,6 +231,26 @@ function extractJSON(text: string): string {
 // ==========================================
 export async function POST(request: NextRequest) {
   try {
+    // --- Auth & Credit check ---
+    const supabase = createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "ログインが必要です。設定画面からログインしてください。", requireAuth: true },
+        { status: 401 }
+      );
+    }
+
+    const balance = await getBalance(user.id);
+    const cost = CREDIT_COSTS.generate;
+    if (balance < cost) {
+      return NextResponse.json(
+        { error: `クレジットが不足しています（必要: ${cost}、残高: ${balance}）。設定画面から購入してください。`, insufficientCredits: true, balance, cost },
+        { status: 402 }
+      );
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -295,6 +318,10 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       );
     }
+
+    // Consume credits on success only
+    const requestId = crypto.randomUUID();
+    await consumeCredits(user.id, cost, "generate", requestId);
 
     return NextResponse.json(validated.data);
   } catch (error) {
