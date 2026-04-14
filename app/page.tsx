@@ -12,8 +12,16 @@ import {
   Layers,
   Smile,
   ExternalLink,
-  X,
 } from "lucide-react";
+
+// X (Twitter) logo SVG — lucide's "X" icon is a close/cross icon, not the Twitter logo
+function XLogoIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 import Mascot from "@/components/Mascot";
 import InputForm from "@/components/InputForm";
 import OutputPanel from "@/components/OutputPanel";
@@ -181,12 +189,12 @@ function CreatorCard() {
               target="_blank"
               rel="noopener noreferrer"
               className={`flex items-center justify-center gap-2 py-3 border-2 border-black rounded-xl font-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all ${
-                link.icon === "x"
+                link.icon === "twitter"
                   ? "bg-white hover:bg-cyan-50"
                   : "bg-indigo-500 text-white hover:bg-indigo-600"
               }`}
             >
-              {link.icon === "x" ? <X size={16} /> : <ExternalLink size={16} />}
+              {link.icon === "twitter" ? <XLogoIcon size={16} /> : <ExternalLink size={16} />}
               {link.label}
             </a>
           ))}
@@ -372,7 +380,7 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="p-1.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
                   >
-                    {link.icon === "x" ? <X size={12} /> : <ExternalLink size={12} />}
+                    {link.icon === "twitter" ? <XLogoIcon size={12} /> : <ExternalLink size={12} />}
                   </a>
                 ))}
               </div>

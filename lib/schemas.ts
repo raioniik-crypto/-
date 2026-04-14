@@ -16,6 +16,7 @@ export const carouselSlideSchema = z.object({
 export const imagePromptSchema = z.object({
   label: z.string(),
   mainPrompt: z.string(),
+  mainPromptJa: z.string(),
   subPrompt: z.string(),
   negativePrompt: z.string(),
   aspectRatio: z.string(),

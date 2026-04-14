@@ -42,7 +42,7 @@ export const FORM_FIELD_LABELS: Record<keyof FormInput, string> = {
 };
 
 export const FORM_PLACEHOLDERS: Record<keyof FormInput, string> = {
-  productName: "例：AI SNSマーケティングツール「PostGenius」",
+  productName: "例：Instagram運用代行サービス「プロ・コネクト」",
   overview: "例：AIがX投稿・カルーセル・画像プロンプトを自動生成するSaaSツール",
   target: "例：SNS運用担当者、個人事業主、マーケター",
   targetPain: "例：毎回投稿を考えるのが大変、デザインのネタが尽きる",
@@ -80,6 +80,7 @@ export interface CarouselSlide {
 export interface ImagePrompt {
   label: string;
   mainPrompt: string;
+  mainPromptJa: string;
   subPrompt: string;
   negativePrompt: string;
   aspectRatio: string;

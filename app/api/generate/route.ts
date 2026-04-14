@@ -35,6 +35,7 @@ ${fields}
 ### 3. Gemini画像生成プロンプト（imagePrompts）
 - 3パターン生成（「王道訴求」「感情訴求」「世界観重視」）
 - mainPrompt: メインの画像生成指示（英語）
+- mainPromptJa: mainPromptの日本語訳（自然な日本語で意味が分かるように）
 - subPrompt: スタイル指定（英語）
 - negativePrompt: 生成しない要素（英語）
 - aspectRatio: "1:1" or "16:9" or "9:16"
@@ -59,7 +60,7 @@ ${fields}
     { "slideNumber": 1, "title": "...", "subtitle": "...", "body": "..." }
   ],
   "imagePrompts": [
-    { "label": "王道訴求", "mainPrompt": "...", "subPrompt": "...", "negativePrompt": "...", "aspectRatio": "1:1" }
+    { "label": "王道訴求", "mainPrompt": "...", "mainPromptJa": "...", "subPrompt": "...", "negativePrompt": "...", "aspectRatio": "1:1" }
   ],
   "canvaTexts": {
     "coverTitles": ["..."],

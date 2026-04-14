@@ -267,6 +267,41 @@ function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: 
   );
 }
 
+function ImagePromptCopyBar({
+  prompt,
+  onCopy,
+}: {
+  prompt: { mainPrompt: string; mainPromptJa: string; subPrompt: string; negativePrompt: string; aspectRatio: string };
+  onCopy: (t: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      <button
+        onClick={() => onCopy(prompt.mainPrompt)}
+        className="px-3 py-1.5 bg-yellow-400 text-black font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+      >
+        <Copy size={10} className="inline mr-1" />英語のみ
+      </button>
+      <button
+        onClick={() => onCopy(prompt.mainPromptJa)}
+        className="px-3 py-1.5 bg-cyan-400 text-black font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+      >
+        <Copy size={10} className="inline mr-1" />日本語訳のみ
+      </button>
+      <button
+        onClick={() =>
+          onCopy(
+            `Main: ${prompt.mainPrompt}\n日本語: ${prompt.mainPromptJa}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}\nAspect: ${prompt.aspectRatio}`
+          )
+        }
+        className="px-3 py-1.5 bg-slate-700 text-white font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+      >
+        <Copy size={10} className="inline mr-1" />全部コピー
+      </button>
+    </div>
+  );
+}
+
 function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
   return (
     <div className="space-y-6">
@@ -276,7 +311,10 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
         ]}
         onCopy={() => {
           const all = result.imagePrompts
-            .map((p) => `[${p.label}]\nMain: ${p.mainPrompt}\nStyle: ${p.subPrompt}\nNegative: ${p.negativePrompt}\nAspect: ${p.aspectRatio}`)
+            .map(
+              (p) =>
+                `[${p.label}]\nMain: ${p.mainPrompt}\n日本語: ${p.mainPromptJa}\nStyle: ${p.subPrompt}\nNegative: ${p.negativePrompt}\nAspect: ${p.aspectRatio}`
+            )
             .join("\n\n---\n\n");
           onCopy(all);
         }}
@@ -304,17 +342,9 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             <span className="px-3 py-1 bg-yellow-400 text-black text-xs font-black rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
               {prompt.label} ({prompt.aspectRatio})
             </span>
-            <button
-              onClick={() =>
-                onCopy(`Main: ${prompt.mainPrompt}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}`)
-              }
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-            >
-              <Copy size={16} />
-              コピー
-            </button>
           </div>
 
+          {/* Main Prompt (EN) */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-black text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               MAIN PROMPT
@@ -324,6 +354,17 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </div>
           </div>
 
+          {/* Japanese Translation */}
+          <div className="relative group">
+            <div className="absolute -top-3 -left-1 bg-cyan-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
+              日本語訳
+            </div>
+            <div className="p-6 bg-cyan-50 border-4 border-black rounded-2xl text-sm font-bold shadow-[6px_6px_0px_0px_rgba(6,182,212,0.2)] leading-relaxed">
+              {prompt.mainPromptJa}
+            </div>
+          </div>
+
+          {/* Style Prompt */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               STYLE PROMPT
@@ -333,6 +374,7 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </div>
           </div>
 
+          {/* Negative Prompt */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               NG PROMPT
@@ -342,6 +384,9 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
               <span>{prompt.negativePrompt}</span>
             </div>
           </div>
+
+          {/* Per-prompt copy bar */}
+          <ImagePromptCopyBar prompt={prompt} onCopy={onCopy} />
         </motion.div>
       ))}
 
