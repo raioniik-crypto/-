@@ -6,8 +6,8 @@ import { FormInput, FORM_FIELD_LABELS } from "@/app/types";
 // ==========================================
 // モデル設定
 // ==========================================
-const PRIMARY_MODEL = "gemini-2.0-flash";
-const FALLBACK_MODEL = "gemini-2.0-flash-lite";
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.5-flash-lite";
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 1500;
 
