@@ -19,6 +19,14 @@ export interface FormInput {
   imageDirection: string;
   carouselSlides: number;
   additionalNotes: string;
+  // 詳細設定
+  advancedInstruction: string;
+  outputLength: "short" | "medium" | "long";
+  hashtagCount: number;
+  emojiLevel: "none" | "few" | "normal" | "many";
+  ctaStrength: "soft" | "medium" | "strong";
+  imageAspectRatio: string;
+  additionalNgWords: string;
 }
 
 export const FORM_FIELD_LABELS: Record<keyof FormInput, string> = {
@@ -39,6 +47,13 @@ export const FORM_FIELD_LABELS: Record<keyof FormInput, string> = {
   imageDirection: "画像の方向性",
   carouselSlides: "カルーセル枚数",
   additionalNotes: "追加メモ",
+  advancedInstruction: "追加指示",
+  outputLength: "出力の長さ",
+  hashtagCount: "ハッシュタグ数",
+  emojiLevel: "絵文字量",
+  ctaStrength: "CTA強度",
+  imageAspectRatio: "画像アスペクト比",
+  additionalNgWords: "追加の禁止表現",
 };
 
 export const FORM_PLACEHOLDERS: Record<keyof FormInput, string> = {
@@ -59,6 +74,13 @@ export const FORM_PLACEHOLDERS: Record<keyof FormInput, string> = {
   imageDirection: "例：クリーンでモダン、青系グラデーション、テック感",
   carouselSlides: "",
   additionalNotes: "例：来週の月曜に投稿予定、ハッシュタグは5個以内",
+  advancedInstruction: "例：医療系の表現に注意、法人向けのトーンで",
+  outputLength: "",
+  hashtagCount: "",
+  emojiLevel: "",
+  ctaStrength: "",
+  imageAspectRatio: "",
+  additionalNgWords: "例：煽り表現、過度な断定",
 };
 
 // ==========================================
@@ -135,4 +157,11 @@ export const INITIAL_FORM: FormInput = {
   imageDirection: "",
   carouselSlides: 5,
   additionalNotes: "",
+  advancedInstruction: "",
+  outputLength: "medium",
+  hashtagCount: 5,
+  emojiLevel: "normal",
+  ctaStrength: "medium",
+  imageAspectRatio: "1:1",
+  additionalNgWords: "",
 };

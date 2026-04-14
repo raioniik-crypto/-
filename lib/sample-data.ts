@@ -1,6 +1,7 @@
-import { FormInput } from "@/app/types";
+import { FormInput, INITIAL_FORM } from "@/app/types";
 
 export const SAMPLE_INPUT: FormInput = {
+  ...INITIAL_FORM,
   productName: "Instagram運用代行サービス「プロ・コネクト」",
   overview:
     "小規模事業者向けに、投稿作成の負担を減らし、集客導線を整える一気通貫のSNS運用代行サービス",

@@ -401,10 +401,128 @@ export default function InputForm({
                   exit={{ height: 0 }}
                   className="overflow-hidden bg-white"
                 >
-                  <div className="p-4 space-y-4 border-t-4 border-black">
+                  <div className="p-4 space-y-5 border-t-4 border-black">
+                    {/* 追加指示 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">追加指示（自由記述）</label>
+                      <textarea
+                        value={form.advancedInstruction}
+                        onChange={(e) => updateField("advancedInstruction", e.target.value)}
+                        placeholder="例：医療系の表現に注意、法人向けのトーンで"
+                        className="w-full px-3 py-2 rounded-xl border-2 border-black focus:bg-yellow-50 outline-none font-bold text-sm min-h-[60px]"
+                      />
+                    </div>
+
+                    {/* 出力の長さ */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">X投稿の長さ</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["short", "medium", "long"] as const).map((len) => (
+                          <button
+                            key={len}
+                            type="button"
+                            onClick={() => updateField("outputLength", len)}
+                            className={`py-2 rounded-lg text-[10px] font-black border-2 border-black transition-all ${
+                              form.outputLength === len ? "bg-pink-500 text-white" : "bg-white text-black"
+                            }`}
+                          >
+                            {len === "short" ? "短め" : len === "medium" ? "標準" : "長め"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ハッシュタグ数 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">ハッシュタグ数: {form.hashtagCount}個</label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        value={form.hashtagCount}
+                        onChange={(e) => updateField("hashtagCount", parseInt(e.target.value))}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-[10px] font-black text-slate-400">
+                        <span>1個</span><span>5個</span><span>10個</span>
+                      </div>
+                    </div>
+
+                    {/* 絵文字量 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">絵文字量</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {(["none", "few", "normal", "many"] as const).map((lv) => (
+                          <button
+                            key={lv}
+                            type="button"
+                            onClick={() => updateField("emojiLevel", lv)}
+                            className={`py-2 rounded-lg text-[10px] font-black border-2 border-black transition-all ${
+                              form.emojiLevel === lv ? "bg-indigo-500 text-white" : "bg-white text-black"
+                            }`}
+                          >
+                            {lv === "none" ? "なし" : lv === "few" ? "少し" : lv === "normal" ? "普通" : "多め"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* CTA強度 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">CTA強度</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["soft", "medium", "strong"] as const).map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => updateField("ctaStrength", s)}
+                            className={`py-2 rounded-lg text-[10px] font-black border-2 border-black transition-all ${
+                              form.ctaStrength === s ? "bg-cyan-500 text-white" : "bg-white text-black"
+                            }`}
+                          >
+                            {s === "soft" ? "やんわり" : s === "medium" ? "標準" : "強め"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 画像アスペクト比 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">画像アスペクト比</label>
+                      <div className="flex flex-wrap gap-2">
+                        {["1:1", "16:9", "9:16", "4:3", "3:4"].map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => updateField("imageAspectRatio", r)}
+                            className={`px-3 py-2 rounded-lg text-[10px] font-black border-2 border-black transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${
+                              form.imageAspectRatio === r
+                                ? "bg-yellow-400 text-black translate-x-[1px] translate-y-[1px] shadow-none"
+                                : "bg-white text-black"
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 禁止表現の追加 */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-black">追加の禁止表現</label>
+                      <input
+                        type="text"
+                        value={form.additionalNgWords}
+                        onChange={(e) => updateField("additionalNgWords", e.target.value)}
+                        placeholder="例：煽り表現、過度な断定"
+                        className="w-full px-3 py-2 rounded-xl border-2 border-black focus:bg-yellow-50 outline-none font-bold text-sm"
+                      />
+                    </div>
+
                     <div className="p-3 bg-yellow-50 border-2 border-black rounded-xl">
                       <p className="text-[10px] font-bold text-yellow-700">
-                        ※詳細設定を有効にすると、生成により時間がかかる場合がありますが、より意図に沿った出力が得られます。
+                        ※詳細設定は生成・微調整の両方に反映されます。
                       </p>
                     </div>
                   </div>

@@ -130,19 +130,32 @@ function buildPrompt(input: FormInput): string {
     .filter(Boolean)
     .join("\n\n");
 
+  const lengthMap = { short: "80文字以内の短め", medium: "140文字以内の標準", long: "200文字程度の長め" };
+  const emojiMap = { none: "絵文字を一切使わない", few: "絵文字は最小限（1〜2個）", normal: "適度に絵文字を使う", many: "絵文字を積極的に使う" };
+  const ctaMap = { soft: "さりげなくCTAを入れる", medium: "明確にCTAを入れる", strong: "強く行動喚起するCTAを入れる" };
+  const lengthInstruction = lengthMap[input.outputLength] || lengthMap.medium;
+  const emojiInstruction = emojiMap[input.emojiLevel] || emojiMap.normal;
+  const ctaInstruction = ctaMap[input.ctaStrength] || ctaMap.medium;
+  const hashtagNum = input.hashtagCount || 5;
+  const aspectRatio = input.imageAspectRatio || "1:1";
+  const additionalNg = input.additionalNgWords ? `\n- 追加NG表現: ${input.additionalNgWords}` : "";
+  const advancedNote = input.advancedInstruction ? `\n\n## 追加指示\n${input.advancedInstruction}` : "";
+
   return `あなたはSNSマーケティングの専門家です。以下の情報をもとに、X（Twitter）投稿コンテンツを生成してください。
 
 ## 入力情報
-${fields}
+${fields}${advancedNote}
 
 ## 出力指示
 以下の4種類のコンテンツを**必ずJSON形式のみ**で返してください。JSON以外のテキスト（説明文やマークダウン）は一切含めないでください。
 
 ### 1. X投稿本文（xPosts）
 - 3パターン生成（「王道」「共感重視」「訴求強め」）
-- 各投稿は140文字以内を目安
-- ハッシュタグを3〜5個付与
-- NG表現があれば絶対に使わない
+- 各投稿は${lengthInstruction}
+- ハッシュタグを${hashtagNum}個付与
+- ${emojiInstruction}
+- ${ctaInstruction}
+- NG表現があれば絶対に使わない${additionalNg}
 
 ### 2. カルーセル文言（carousel）
 - ${input.carouselSlides}枚分のスライド文言
@@ -155,7 +168,7 @@ ${fields}
 - mainPromptJa: mainPromptの日本語訳（自然な日本語で意味が分かるように）
 - subPrompt: スタイル指定（英語）
 - negativePrompt: 生成しない要素（英語）
-- aspectRatio: "1:1" or "16:9" or "9:16"
+- aspectRatio: "${aspectRatio}"
 
 ### 4. Canva用文字素材（canvaTexts）
 - coverTitles: カバー用タイトル案（2〜3個）
