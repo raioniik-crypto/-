@@ -10,6 +10,7 @@ import {
   Settings,
   Save,
   Layers,
+  Sparkles,
 } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import InputForm from "@/components/InputForm";
@@ -287,7 +288,7 @@ export default function Home() {
       />
 
       {/* Footer */}
-      <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40">
+      <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40 shadow-[0_-4px_0_0_rgba(0,0,0,1)]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-[10px] font-black">
             <span className="flex items-center gap-1">
@@ -295,31 +296,25 @@ export default function Home() {
               SYSTEM ONLINE
             </span>
             <span className="bg-yellow-400 px-2 py-0.5 rounded border border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]">
-              VERSION 1.0.0
+              VERSION 1.0.0-POP
             </span>
           </div>
-          <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-            Powered by Gemini API
+          <div className="flex flex-col items-center md:items-end gap-1">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Powered by
+              </span>
+              <div className="flex items-center gap-2 px-3 py-1 bg-pink-50 border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <Sparkles size={12} className="text-pink-500" />
+                <span className="text-xs font-black">Gemini API</span>
+              </div>
+            </div>
+            <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+              SNS投稿生成アシスタント - All Rights Reserved.
+            </div>
           </div>
         </div>
       </footer>
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f5f9;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #000;
-          border-radius: 0px;
-          border: 2px solid #f1f5f9;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #333;
-        }
-      `}</style>
     </div>
   );
 }

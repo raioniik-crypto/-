@@ -5,8 +5,10 @@
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   background: #f8fafc;
+  color: #0f172a;
 }
 
+/* Neo-brutalist scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
 }
@@ -23,4 +25,37 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #333;
+}
+
+/* Range slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 12px;
+  background: #e2e8f0;
+  border: 2px solid black;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: #6366f1;
+  border: 3px solid black;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: #6366f1;
+  border: 3px solid black;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,1);
 }
