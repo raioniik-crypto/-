@@ -1,8 +1,125 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { generateResultSchema } from "@/lib/schemas";
 import { FormInput, FORM_FIELD_LABELS } from "@/app/types";
 
+// ==========================================
+// モデル設定
+// ==========================================
+const PRIMARY_MODEL = "gemini-2.0-flash";
+const FALLBACK_MODEL = "gemini-2.0-flash-lite";
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 1500;
+
+// ==========================================
+// リトライ可能なステータスコード
+// ==========================================
+const RETRYABLE_STATUS_CODES = new Set([429, 503]);
+
+function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message || "";
+  // Google AI SDK wraps HTTP errors with status in the message
+  return (
+    RETRYABLE_STATUS_CODES.has(extractStatusCode(msg)) ||
+    msg.includes("503") ||
+    msg.includes("429") ||
+    msg.includes("overloaded") ||
+    msg.includes("unavailable") ||
+    msg.includes("RESOURCE_EXHAUSTED")
+  );
+}
+
+function extractStatusCode(message: string): number {
+  const match = message.match(/\b(4\d{2}|5\d{2})\b/);
+  return match ? parseInt(match[1]) : 0;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ==========================================
+// リトライ付き生成関数
+// ==========================================
+async function generateWithRetry(
+  model: GenerativeModel,
+  prompt: string,
+  retries: number = MAX_RETRIES
+): Promise<string> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(
+        `[Gemini] Attempt ${attempt + 1}/${retries + 1} failed: ${lastError.message}`
+      );
+
+      if (!isRetryableError(error) || attempt === retries) {
+        break;
+      }
+
+      const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      console.log(`[Gemini] Retrying in ${delay}ms...`);
+      await sleep(delay);
+    }
+  }
+
+  throw lastError ?? new Error("Unknown generation error");
+}
+
+// ==========================================
+// エラーメッセージの日本語化
+// ==========================================
+function toUserFriendlyError(error: unknown): { message: string; status: number } {
+  if (!(error instanceof Error)) {
+    return { message: "不明なエラーが発生しました。", status: 500 };
+  }
+
+  const msg = error.message || "";
+  const code = extractStatusCode(msg);
+
+  if (code === 429 || msg.includes("RESOURCE_EXHAUSTED")) {
+    return {
+      message: "APIのリクエスト制限に達しました。1分ほど待ってから再試行してください。",
+      status: 429,
+    };
+  }
+
+  if (code === 503 || msg.includes("overloaded") || msg.includes("unavailable")) {
+    return {
+      message: "現在AIサーバーが混み合っています。少し待ってから再試行してください。",
+      status: 503,
+    };
+  }
+
+  if (code === 400 || msg.includes("INVALID_ARGUMENT")) {
+    return {
+      message: "入力内容に問題がある可能性があります。内容を確認してもう一度お試しください。",
+      status: 400,
+    };
+  }
+
+  if (msg.includes("API key") || msg.includes("PERMISSION_DENIED")) {
+    return {
+      message: "APIキーが無効または未設定です。管理者に連絡してください。",
+      status: 401,
+    };
+  }
+
+  return {
+    message: "AIの生成中にエラーが発生しました。もう一度お試しください。",
+    status: 500,
+  };
+}
+
+// ==========================================
+// プロンプト生成
+// ==========================================
 function buildPrompt(input: FormInput): string {
   const fields = Object.entries(FORM_FIELD_LABELS)
     .map(([key, label]) => {
@@ -76,14 +193,15 @@ ${fields}
 JSONのみを返してください。コードブロック記号(\`\`\`)も不要です。純粋なJSONだけを返してください。`;
 }
 
+// ==========================================
+// JSONパース
+// ==========================================
 function extractJSON(text: string): string {
-  // Try to find JSON in code blocks first
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) {
     return codeBlockMatch[1].trim();
   }
 
-  // Try to find a JSON object directly
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     return jsonMatch[0];
@@ -92,6 +210,9 @@ function extractJSON(text: string): string {
   return text.trim();
 }
 
+// ==========================================
+// API ハンドラ
+// ==========================================
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -113,13 +234,28 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
     const prompt = buildPrompt(input);
 
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    const text = response.text();
+    // Try primary model with retries, then fallback
+    let text: string;
+    try {
+      const primaryModel = genAI.getGenerativeModel({ model: PRIMARY_MODEL });
+      text = await generateWithRetry(primaryModel, prompt);
+    } catch (primaryError) {
+      console.warn(
+        `[Gemini] Primary model (${PRIMARY_MODEL}) failed after retries. Trying fallback (${FALLBACK_MODEL})...`
+      );
+
+      try {
+        const fallbackModel = genAI.getGenerativeModel({ model: FALLBACK_MODEL });
+        text = await generateWithRetry(fallbackModel, prompt, 1);
+      } catch (fallbackError) {
+        console.error("[Gemini] Fallback model also failed:", fallbackError);
+        // Return user-friendly error from the primary error
+        const friendly = toUserFriendlyError(primaryError);
+        return NextResponse.json({ error: friendly.message }, { status: friendly.status });
+      }
+    }
 
     const jsonStr = extractJSON(text);
 
@@ -150,8 +286,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(validated.data);
   } catch (error) {
     console.error("Generate API error:", error);
-    const message =
-      error instanceof Error ? error.message : "不明なエラーが発生しました";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const friendly = toUserFriendlyError(error);
+    return NextResponse.json({ error: friendly.message }, { status: friendly.status });
   }
 }
