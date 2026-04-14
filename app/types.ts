@@ -107,6 +107,9 @@ export interface GenerateResult {
 // ==========================================
 export type OutputTab = "xPosts" | "carousel" | "imagePrompts" | "canvaTexts";
 
+// 調整API用の型
+export type AdjustTarget = "xPosts" | "imagePrompts" | "canvaTexts";
+
 export const OUTPUT_TAB_LABELS: Record<OutputTab, string> = {
   xPosts: "X投稿本文",
   carousel: "カルーセル",

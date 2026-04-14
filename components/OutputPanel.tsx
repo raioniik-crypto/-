@@ -16,6 +16,7 @@ import {
   GenerateResult,
   OutputTab,
   OUTPUT_TAB_LABELS,
+  AdjustTarget,
 } from "@/app/types";
 import { dedupeWithBody } from "@/lib/hashtag";
 import { buildXPostUrl, EXTERNAL_URLS, ADJUST_CHIPS } from "@/lib/constants";
@@ -26,6 +27,8 @@ interface OutputPanelProps {
   error: string | null;
   onRetry: () => void;
   onCopy: (text: string) => void;
+  onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>;
+  adjusting: boolean;
 }
 
 const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: string }[] = [
@@ -36,7 +39,13 @@ const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: s
 ];
 
 // --- Shared: Adjust Chips ---
-function AdjustChips({ onSelect }: { onSelect: (prompt: string) => void }) {
+function AdjustChips({
+  onSelect,
+  disabled,
+}: {
+  onSelect: (prompt: string) => void;
+  disabled: boolean;
+}) {
   return (
     <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t-2 border-dashed border-slate-200">
       <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider self-center mr-1">
@@ -46,7 +55,8 @@ function AdjustChips({ onSelect }: { onSelect: (prompt: string) => void }) {
         <button
           key={chip.label}
           onClick={() => onSelect(chip.prompt)}
-          className="px-3 py-1 text-[10px] font-black bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-100 transition-all"
+          disabled={disabled}
+          className="px-3 py-1 text-[10px] font-black bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
         >
           {chip.label}
         </button>
@@ -170,7 +180,7 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
 
 // --- Tab Views ---
 
-function XPostsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+function XPostsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   return (
     <div className="space-y-4">
       {result.xPosts.map((post, i) => {
@@ -220,7 +230,7 @@ function XPostsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: st
           </motion.div>
         );
       })}
-      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
+      <AdjustChips onSelect={(p) => onAdjust("xPosts", p)} disabled={adjusting} />
     </div>
   );
 }
@@ -302,7 +312,7 @@ function ImagePromptCopyBar({
   );
 }
 
-function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+function ImagePromptsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   return (
     <div className="space-y-6">
       <ActionBar
@@ -401,7 +411,7 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
           </p>
         </div>
       </div>
-      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
+      <AdjustChips onSelect={(p) => onAdjust("imagePrompts", p)} disabled={adjusting} />
     </div>
   );
 }
@@ -422,7 +432,7 @@ const CANVA_SECTIONS: {
   { key: "badgeShortTexts", title: "バッジ・ラベル", usage: "タグ・ステッカー向け", color: "bg-orange-50", borderColor: "border-orange-300" },
 ];
 
-function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   const allText = CANVA_SECTIONS.map((s) => `【${s.title}】\n${result.canvaTexts[s.key].join("\n")}`).join("\n\n");
 
   return (
@@ -471,20 +481,26 @@ function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t
           </div>
         </div>
       ))}
-      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
+      <AdjustChips onSelect={(p) => onAdjust("canvaTexts", p)} disabled={adjusting} />
     </div>
   );
 }
 
 // --- Main Panel ---
 
-export default function OutputPanel({ result, loading, error, onRetry, onCopy }: OutputPanelProps) {
+export default function OutputPanel({ result, loading, error, onRetry, onCopy, onAdjust, adjusting }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");
 
   return (
     <div className="bg-white rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-4 border-black overflow-hidden flex flex-col min-h-[600px]">
       {/* Tabs */}
-      <div className="bg-indigo-50 border-b-4 border-black p-2 flex gap-2 overflow-x-auto custom-scrollbar">
+      <div className="bg-indigo-50 border-b-4 border-black p-2 flex gap-2 overflow-x-auto custom-scrollbar items-center">
+        {adjusting && (
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-yellow-400 border-2 border-black rounded-lg text-[10px] font-black animate-pulse shrink-0">
+            <div className="w-3 h-3 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            調整中...
+          </div>
+        )}
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -517,10 +533,10 @@ export default function OutputPanel({ result, loading, error, onRetry, onCopy }:
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
             >
-              {activeTab === "xPosts" && <XPostsView result={result} onCopy={onCopy} />}
+              {activeTab === "xPosts" && <XPostsView result={result} onCopy={onCopy} onAdjust={onAdjust} adjusting={adjusting} />}
               {activeTab === "carousel" && <CarouselView result={result} onCopy={onCopy} />}
-              {activeTab === "imagePrompts" && <ImagePromptsView result={result} onCopy={onCopy} />}
-              {activeTab === "canvaTexts" && <CanvaTextsView result={result} onCopy={onCopy} />}
+              {activeTab === "imagePrompts" && <ImagePromptsView result={result} onCopy={onCopy} onAdjust={onAdjust} adjusting={adjusting} />}
+              {activeTab === "canvaTexts" && <CanvaTextsView result={result} onCopy={onCopy} onAdjust={onAdjust} adjusting={adjusting} />}
             </motion.div>
           )}
         </AnimatePresence>

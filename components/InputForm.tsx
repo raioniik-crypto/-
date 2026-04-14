@@ -217,7 +217,10 @@ export default function InputForm({
             return (
               <button
                 key={tpl.id}
-                onClick={() => onToast(`「${tpl.label}」テンプレートは今後追加予定です`)}
+                onClick={() => {
+                  onChange(tpl.data);
+                  onToast(`「${tpl.label}」テンプレートを適用しました`);
+                }}
                 className="flex items-center gap-2 p-3 bg-white border-2 border-black rounded-xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-50 transition-all text-left"
               >
                 <Icon size={16} className="text-indigo-500 shrink-0" />

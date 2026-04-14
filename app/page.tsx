@@ -26,7 +26,7 @@ import InputForm from "@/components/InputForm";
 import OutputPanel from "@/components/OutputPanel";
 import Toast from "@/components/Toast";
 import ResetConfirmModal from "@/components/ResetConfirmModal";
-import { FormInput, GenerateResult, INITIAL_FORM } from "./types";
+import { FormInput, GenerateResult, INITIAL_FORM, AdjustTarget } from "./types";
 import { CREATOR, MASCOT_MESSAGES } from "@/lib/constants";
 
 type AppStatus = "input" | "generating" | "output";
@@ -217,6 +217,7 @@ export default function Home() {
   const [toast, setToast] = useState({ visible: false, message: "" });
   const [hydrated, setHydrated] = useState(false);
   const [mascotMessage, setMascotMessage] = useState(MASCOT_MESSAGES.idle);
+  const [adjusting, setAdjusting] = useState(false);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -307,6 +308,55 @@ export default function Home() {
     [showToast, status]
   );
 
+  const handleAdjust = useCallback(
+    async (target: AdjustTarget, instruction: string) => {
+      if (!result) return;
+      setAdjusting(true);
+      setMascotMessage(MASCOT_MESSAGES.adjusting);
+
+      try {
+        const currentContent = result[target];
+        const res = await fetch("/api/adjust", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target, currentContent, instruction }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "調整に失敗しました。");
+        }
+
+        setResult((prev) => {
+          if (!prev) return prev;
+          return { ...prev, [target]: data.data };
+        });
+        setMascotMessage(MASCOT_MESSAGES.adjusted);
+        showToast("調整しました！");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "調整中にエラーが発生しました。";
+        showToast(msg);
+        setMascotMessage(MASCOT_MESSAGES.error);
+      } finally {
+        setAdjusting(false);
+      }
+    },
+    [result, showToast]
+  );
+
+  const handleTemplateToast = useCallback(
+    (message: string) => {
+      showToast(message);
+      setMascotMessage(MASCOT_MESSAGES.templateApplied);
+      setTimeout(() => {
+        setMascotMessage((prev) =>
+          prev === MASCOT_MESSAGES.templateApplied ? MASCOT_MESSAGES.idle : prev
+        );
+      }, 3000);
+    },
+    [showToast]
+  );
+
   return (
     <div className="min-h-screen font-sans text-slate-900 pb-32 bg-slate-50">
       <Header />
@@ -325,7 +375,7 @@ export default function Home() {
               onSubmit={handleGenerate}
               onResetClick={() => setShowResetConfirm(true)}
               loading={status === "generating"}
-              onToast={showToast}
+              onToast={handleTemplateToast}
             />
             <NoticeBox />
             <CreatorCard />
@@ -339,6 +389,8 @@ export default function Home() {
               error={error}
               onRetry={handleGenerate}
               onCopy={handleCopy}
+              onAdjust={handleAdjust}
+              adjusting={adjusting}
             />
           </div>
         </div>
