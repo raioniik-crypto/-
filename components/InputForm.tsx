@@ -14,9 +14,14 @@ import {
   Copy,
   Settings,
   ChevronUp,
+  Package,
+  Megaphone,
+  Gift,
+  BookOpen,
 } from "lucide-react";
 import { FormInput, FORM_FIELD_LABELS, FORM_PLACEHOLDERS } from "@/app/types";
 import { SAMPLE_INPUT } from "@/lib/sample-data";
+import { INPUT_TEMPLATES } from "@/lib/constants";
 
 interface InputFormProps {
   form: FormInput;
@@ -191,8 +196,41 @@ export default function InputForm({
     }
   }
 
+  const TEMPLATE_ICONS = {
+    package: Package,
+    megaphone: Megaphone,
+    gift: Gift,
+    "book-open": BookOpen,
+  };
+
   return (
     <div className="space-y-6">
+      {/* ========== Template Selector (C7) ========== */}
+      <div className="bg-white border-4 border-black rounded-3xl p-5 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+        <h3 className="font-black text-sm mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-indigo-600" />
+          テンプレート選択
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {INPUT_TEMPLATES.map((tpl) => {
+            const Icon = TEMPLATE_ICONS[tpl.icon];
+            return (
+              <button
+                key={tpl.id}
+                onClick={() => onToast(`「${tpl.label}」テンプレートは今後追加予定です`)}
+                className="flex items-center gap-2 p-3 bg-white border-2 border-black rounded-xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-50 transition-all text-left"
+              >
+                <Icon size={16} className="text-indigo-500 shrink-0" />
+                <div>
+                  <p className="text-[11px] font-black">{tpl.label}</p>
+                  <p className="text-[9px] font-bold text-slate-400">{tpl.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ========== MAGIC AUTOFILL Card ========== */}
       <div className="bg-white border-4 border-black rounded-3xl overflow-hidden shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
         <button

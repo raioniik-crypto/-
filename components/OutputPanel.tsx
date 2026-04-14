@@ -10,12 +10,15 @@ import {
   Copy,
   Sparkles,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 import {
   GenerateResult,
   OutputTab,
   OUTPUT_TAB_LABELS,
 } from "@/app/types";
+import { dedupeWithBody } from "@/lib/hashtag";
+import { buildXPostUrl, EXTERNAL_URLS, ADJUST_CHIPS } from "@/lib/constants";
 
 interface OutputPanelProps {
   result: GenerateResult | null;
@@ -31,6 +34,65 @@ const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: s
   { id: "imagePrompts", label: "画像プロンプト", icon: ImageIcon, color: "bg-yellow-400" },
   { id: "canvaTexts", label: "Canva素材", icon: Type, color: "bg-indigo-500" },
 ];
+
+// --- Shared: Adjust Chips ---
+function AdjustChips({ onSelect }: { onSelect: (prompt: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t-2 border-dashed border-slate-200">
+      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider self-center mr-1">
+        微調整:
+      </span>
+      {ADJUST_CHIPS.map((chip) => (
+        <button
+          key={chip.label}
+          onClick={() => onSelect(chip.prompt)}
+          className="px-3 py-1 text-[10px] font-black bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-100 transition-all"
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// --- Shared: Action Bar ---
+function ActionBar({
+  links,
+  onCopy,
+  copyText,
+}: {
+  links: { label: string; url: string; color: string }[];
+  onCopy: () => void;
+  copyText?: string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 border-2 border-black rounded-xl">
+      {links.map((link) => (
+        <a
+          key={link.label}
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-1.5 px-3 py-1.5 ${link.color} text-white font-black text-xs border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all`}
+        >
+          <ExternalLink size={12} />
+          {link.label}
+        </a>
+      ))}
+      {copyText && (
+        <button
+          onClick={onCopy}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white font-black text-xs border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all ml-auto"
+        >
+          <Copy size={12} />
+          全部コピー
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Empty / Loading / Error states ---
 
 function EmptyState() {
   return (
@@ -106,48 +168,59 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
   );
 }
 
+// --- Tab Views ---
+
 function XPostsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-black text-lg flex items-center gap-2">
-          <MousePointer2 size={24} className="text-pink-500" />
-          X（旧Twitter）投稿本文
-        </h3>
-      </div>
-      {result.xPosts.map((post, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.1 }}
-          className="p-6 bg-slate-50 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="px-3 py-1 bg-pink-500 text-white text-xs font-black rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-              {post.label}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400">{post.body.length}文字</span>
-              <button
-                onClick={() => onCopy(`${post.body}\n\n${post.hashtags.map((h) => `#${h}`).join(" ")}`)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white rounded-xl font-black text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
-              >
-                <Copy size={14} />
-                コピー
-              </button>
-            </div>
-          </div>
-          <p className="font-bold leading-relaxed whitespace-pre-wrap mb-3">{post.body}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {post.hashtags.map((tag, j) => (
-              <span key={j} className="text-xs font-black px-2 py-0.5 bg-white border-2 border-black rounded-full">
-                #{tag}
+      {result.xPosts.map((post, i) => {
+        const cleanTags = dedupeWithBody(post.body, post.hashtags, 5);
+        const fullText = `${post.body}\n\n${cleanTags.map((h) => `#${h}`).join(" ")}`;
+
+        return (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            className="p-6 bg-slate-50 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="px-3 py-1 bg-pink-500 text-white text-xs font-black rounded-full border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                {post.label}
               </span>
-            ))}
-          </div>
-        </motion.div>
-      ))}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400">{post.body.length}文字</span>
+                <a
+                  href={buildXPostUrl(fullText)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-black text-white rounded-xl font-black text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,0.3)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                >
+                  <ExternalLink size={12} />
+                  Xで投稿
+                </a>
+                <button
+                  onClick={() => onCopy(fullText)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white rounded-xl font-black text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                >
+                  <Copy size={14} />
+                  コピー
+                </button>
+              </div>
+            </div>
+            <p className="font-bold leading-relaxed whitespace-pre-wrap mb-3">{post.body}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {cleanTags.map((tag, j) => (
+                <span key={j} className="text-xs font-black px-2 py-0.5 bg-white border-2 border-black rounded-full">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })}
+      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
     </div>
   );
 }
@@ -157,19 +230,13 @@ function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-black text-lg flex items-center gap-2">
-          <Layout size={24} className="text-cyan-500" />
-          カルーセル投稿用文言
-        </h3>
-        <button
-          onClick={() => onCopy(allText)}
-          className="flex items-center gap-2 px-4 py-2 bg-cyan-400 text-black rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-        >
-          <Copy size={18} />
-          全てコピー
-        </button>
-      </div>
+      <ActionBar
+        links={[
+          { label: "Canvaを開く", url: EXTERNAL_URLS.canvaHome, color: "bg-indigo-500" },
+        ]}
+        onCopy={() => onCopy(allText)}
+        copyText={allText}
+      />
       <div className="grid grid-cols-1 gap-4">
         {result.carousel.map((slide, i) => (
           <motion.div
@@ -203,6 +270,19 @@ function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: 
 function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
   return (
     <div className="space-y-6">
+      <ActionBar
+        links={[
+          { label: "Gemini / AI Studioを開く", url: EXTERNAL_URLS.geminiHome, color: "bg-yellow-500" },
+        ]}
+        onCopy={() => {
+          const all = result.imagePrompts
+            .map((p) => `[${p.label}]\nMain: ${p.mainPrompt}\nStyle: ${p.subPrompt}\nNegative: ${p.negativePrompt}\nAspect: ${p.aspectRatio}`)
+            .join("\n\n---\n\n");
+          onCopy(all);
+        }}
+        copyText="all"
+      />
+
       <h3 className="font-black text-2xl flex items-center gap-3 italic">
         <div className="p-2 bg-yellow-400 border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
           <ImageIcon size={28} className="text-black" />
@@ -226,9 +306,7 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </span>
             <button
               onClick={() =>
-                onCopy(
-                  `Main: ${prompt.mainPrompt}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}`
-                )
+                onCopy(`Main: ${prompt.mainPrompt}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}`)
               }
               className="flex items-center gap-2 px-4 py-2 bg-yellow-400 text-black rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
             >
@@ -237,7 +315,6 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </button>
           </div>
 
-          {/* Main Prompt */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-black text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               MAIN PROMPT
@@ -247,7 +324,6 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </div>
           </div>
 
-          {/* Sub Prompt */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               STYLE PROMPT
@@ -257,7 +333,6 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
             </div>
           </div>
 
-          {/* Negative Prompt */}
           <div className="relative group">
             <div className="absolute -top-3 -left-1 bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black z-10">
               NG PROMPT
@@ -281,44 +356,58 @@ function ImagePromptsView({ result, onCopy }: { result: GenerateResult; onCopy: 
           </p>
         </div>
       </div>
+      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
     </div>
   );
 }
 
-function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
-  const sections: { key: keyof GenerateResult["canvaTexts"]; title: string; color: string }[] = [
-    { key: "coverTitles", title: "カバータイトル", color: "bg-pink-50" },
-    { key: "subTitles", title: "サブタイトル", color: "bg-cyan-50" },
-    { key: "highlightWords", title: "強調ワード", color: "bg-yellow-50" },
-    { key: "descriptions", title: "説明文", color: "bg-indigo-50" },
-    { key: "ctaTexts", title: "CTA文言", color: "bg-emerald-50" },
-    { key: "badgeShortTexts", title: "バッジ・ラベル", color: "bg-orange-50" },
-  ];
+// Canva用ラベルマッピング（C6: 用途ラベル強化）
+const CANVA_SECTIONS: {
+  key: keyof GenerateResult["canvaTexts"];
+  title: string;
+  usage: string;
+  color: string;
+  borderColor: string;
+}[] = [
+  { key: "coverTitles", title: "カバータイトル", usage: "表紙・サムネイル向け", color: "bg-pink-50", borderColor: "border-pink-300" },
+  { key: "subTitles", title: "サブタイトル", usage: "見出し・小見出し向け", color: "bg-cyan-50", borderColor: "border-cyan-300" },
+  { key: "highlightWords", title: "強調ワード", usage: "バナー・アクセント向け", color: "bg-yellow-50", borderColor: "border-yellow-300" },
+  { key: "descriptions", title: "説明文", usage: "本文・補足テキスト向け", color: "bg-indigo-50", borderColor: "border-indigo-300" },
+  { key: "ctaTexts", title: "CTA文言", usage: "ボタン・誘導テキスト向け", color: "bg-emerald-50", borderColor: "border-emerald-300" },
+  { key: "badgeShortTexts", title: "バッジ・ラベル", usage: "タグ・ステッカー向け", color: "bg-orange-50", borderColor: "border-orange-300" },
+];
 
-  const allText = sections.map((s) => result.canvaTexts[s.key].join(", ")).join("\n");
+function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+  const allText = CANVA_SECTIONS.map((s) => `【${s.title}】\n${result.canvaTexts[s.key].join("\n")}`).join("\n\n");
 
   return (
     <div className="space-y-6">
+      <ActionBar
+        links={[
+          { label: "Canvaを開く", url: EXTERNAL_URLS.canvaHome, color: "bg-indigo-500" },
+        ]}
+        onCopy={() => onCopy(allText)}
+        copyText={allText}
+      />
+
       <div className="flex items-center justify-between">
         <h3 className="font-black text-lg flex items-center gap-2">
           <Type size={24} className="text-indigo-500" />
           Canva 文字素材
         </h3>
-        <button
-          onClick={() => onCopy(allText)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-xl font-black text-sm border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-        >
-          <Copy size={18} />
-          全てコピー
-        </button>
       </div>
 
-      {sections.map(({ key, title, color }) => (
+      {CANVA_SECTIONS.map(({ key, title, usage, color, borderColor }) => (
         <div key={key} className="space-y-3">
-          <h4 className="text-sm font-black flex items-center gap-2">
-            <div className="w-2 h-4 bg-black rounded-full" />
-            {title}
-          </h4>
+          <div className="flex items-center gap-3">
+            <h4 className="text-sm font-black flex items-center gap-2">
+              <div className="w-2 h-4 bg-black rounded-full" />
+              {title}
+            </h4>
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${borderColor} ${color} text-slate-500`}>
+              {usage}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {result.canvaTexts[key].map((item, i) => (
               <div
@@ -337,9 +426,12 @@ function CanvaTextsView({ result, onCopy }: { result: GenerateResult; onCopy: (t
           </div>
         </div>
       ))}
+      <AdjustChips onSelect={(p) => onCopy(`[調整リクエスト] ${p}`)} />
     </div>
   );
 }
+
+// --- Main Panel ---
 
 export default function OutputPanel({ result, loading, error, onRetry, onCopy }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");

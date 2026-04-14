@@ -10,7 +10,9 @@ import {
   Settings,
   Save,
   Layers,
-  Sparkles,
+  Smile,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import Mascot from "@/components/Mascot";
 import InputForm from "@/components/InputForm";
@@ -18,6 +20,7 @@ import OutputPanel from "@/components/OutputPanel";
 import Toast from "@/components/Toast";
 import ResetConfirmModal from "@/components/ResetConfirmModal";
 import { FormInput, GenerateResult, INITIAL_FORM } from "./types";
+import { CREATOR, MASCOT_MESSAGES } from "@/lib/constants";
 
 type AppStatus = "input" | "generating" | "output";
 
@@ -110,10 +113,10 @@ function ProgressBar({ status }: { status: AppStatus }) {
   );
 }
 
-function UsageGuide() {
+function UsageGuide({ mascotMessage }: { mascotMessage: string }) {
   return (
     <div className="flex flex-col md:flex-row items-center gap-6 mb-8">
-      <Mascot message="こんにちは！私が投稿作成をお手伝いするよ！情報を入力してね" />
+      <Mascot message={mascotMessage} />
       <div className="flex-1 bg-cyan-100 border-4 border-black rounded-2xl p-6 flex flex-wrap gap-6 items-center justify-center text-sm font-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         <div className="flex items-center gap-2">
           <span className="w-8 h-8 rounded-lg bg-pink-500 border-2 border-black text-white flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
@@ -156,6 +159,43 @@ function NoticeBox() {
   );
 }
 
+function CreatorCard() {
+  return (
+    <div className="bg-white border-4 border-black rounded-3xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden group">
+      <div className="absolute -top-6 -right-6 w-24 h-24 bg-pink-500/10 rounded-full group-hover:scale-150 transition-transform duration-700" />
+      <div className="relative z-10 flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Mascot size="sm" className="shrink-0" />
+          <div>
+            <h3 className="font-black text-lg leading-tight">CREATED BY</h3>
+            <p className="text-pink-600 font-black text-sm">
+              {CREATOR.name} | {CREATOR.tagline}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {CREATOR.links.map((link) => (
+            <a
+              key={link.label}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center justify-center gap-2 py-3 border-2 border-black rounded-xl font-black text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all ${
+                link.icon === "x"
+                  ? "bg-white hover:bg-cyan-50"
+                  : "bg-indigo-500 text-white hover:bg-indigo-600"
+              }`}
+            >
+              {link.icon === "x" ? <X size={16} /> : <ExternalLink size={16} />}
+              {link.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Main Page ---
 
 export default function Home() {
@@ -166,6 +206,7 @@ export default function Home() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: "" });
   const [hydrated, setHydrated] = useState(false);
+  const [mascotMessage, setMascotMessage] = useState(MASCOT_MESSAGES.idle);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -199,6 +240,7 @@ export default function Home() {
     setStatus("generating");
     setError(null);
     setResult(null);
+    setMascotMessage(MASCOT_MESSAGES.generating);
 
     try {
       const res = await fetch("/api/generate", {
@@ -215,12 +257,14 @@ export default function Home() {
 
       setResult(data as GenerateResult);
       setStatus("output");
+      setMascotMessage(MASCOT_MESSAGES.success);
       showToast("コンテンツを生成しました");
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "不明なエラーが発生しました。もう一度お試しください。"
       );
       setStatus("input");
+      setMascotMessage(MASCOT_MESSAGES.error);
     }
   }, [form, showToast]);
 
@@ -230,15 +274,27 @@ export default function Home() {
     setError(null);
     setStatus("input");
     setShowResetConfirm(false);
+    setMascotMessage(MASCOT_MESSAGES.idle);
     showToast("入力をリセットしました");
   };
 
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard.writeText(text);
-      showToast("クリップボードにコピーしました");
+      setMascotMessage(MASCOT_MESSAGES.copy);
+      showToast("コピーしました！");
+      // Revert mascot message after a delay
+      setTimeout(() => {
+        setMascotMessage((prev) =>
+          prev === MASCOT_MESSAGES.copy
+            ? status === "output"
+              ? MASCOT_MESSAGES.success
+              : MASCOT_MESSAGES.idle
+            : prev
+        );
+      }, 3000);
     },
-    [showToast]
+    [showToast, status]
   );
 
   return (
@@ -247,7 +303,7 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-4 pt-4">
         <ProgressBar status={status} />
-        <UsageGuide />
+        <UsageGuide mascotMessage={mascotMessage} />
 
         {/* 2 Column Grid: 5:7 matching reference */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -262,6 +318,7 @@ export default function Home() {
               onToast={showToast}
             />
             <NoticeBox />
+            <CreatorCard />
           </div>
 
           {/* Right: Output */}
@@ -299,18 +356,29 @@ export default function Home() {
               VERSION 1.0.0-POP
             </span>
           </div>
-          <div className="flex flex-col items-center md:items-end gap-1">
+          <div className="flex flex-col items-center md:items-end gap-2">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Powered by
-              </span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Creator</span>
               <div className="flex items-center gap-2 px-3 py-1 bg-pink-50 border-2 border-black rounded-full shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <Sparkles size={12} className="text-pink-500" />
-                <span className="text-xs font-black">Gemini API</span>
+                <Smile size={12} className="text-pink-500" />
+                <span className="text-xs font-black">{CREATOR.name} | {CREATOR.tagline}</span>
+              </div>
+              <div className="flex gap-2">
+                {CREATOR.links.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                  >
+                    {link.icon === "x" ? <X size={12} /> : <ExternalLink size={12} />}
+                  </a>
+                ))}
               </div>
             </div>
             <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-              SNS投稿生成アシスタント - All Rights Reserved.
+              Powered by Gemini API
             </div>
           </div>
         </div>
