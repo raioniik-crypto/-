@@ -261,6 +261,22 @@ export default function Home() {
     []
   );
 
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const authStatus = params.get("auth_status");
+  const authMessage = params.get("auth_message");
+
+  if (!authStatus || !authMessage) return;
+
+  showToast(
+    authMessage,
+    authStatus === "success" ? "success" : "error",
+    5000
+  );
+
+  window.history.replaceState({}, "", window.location.pathname);
+}, [showToast]);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
