@@ -12,6 +12,10 @@ interface SettingsModalProps {
   onClose: () => void;
   onToast: (message: string) => void;
   onAuthChange: () => void;
+  /**
+   * 変更するたびに残高を再取得する外部シグナル（例: 決済成功時に親がインクリメント）
+   */
+  refreshSignal?: number;
 }
 
 interface UserState {
@@ -24,6 +28,7 @@ export default function SettingsModal({
   onClose,
   onToast,
   onAuthChange,
+  refreshSignal,
 }: SettingsModalProps) {
   const [user, setUser] = useState<UserState | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -59,6 +64,12 @@ export default function SettingsModal({
       checkAuth();
     }
   }, [isOpen, checkAuth]);
+
+  // refreshSignal が更新されたら残高を再取得（決済成功時などに利用）
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    checkAuth();
+  }, [refreshSignal, checkAuth]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

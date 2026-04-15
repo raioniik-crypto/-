@@ -36,21 +36,64 @@ export async function POST(request: NextRequest) {
     const credits = parseInt(session.metadata?.credits || "0");
 
     if (!userId || credits <= 0) {
-      console.error("Invalid metadata in webhook:", session.metadata);
+      console.error("[Webhook] Invalid metadata:", session.metadata);
       return NextResponse.json({ error: "Invalid metadata" }, { status: 400 });
     }
 
-    // Update order status
     const serviceSupabase = createServiceSupabase();
-    await serviceSupabase
+
+    // --- Idempotency check ---
+    // Fetch current order state to avoid double-crediting on webhook retries
+    const { data: existingOrder, error: fetchError } = await serviceSupabase
+      .from("payment_orders")
+      .select("status")
+      .eq("stripe_session_id", session.id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("[Webhook] Failed to fetch order:", fetchError);
+      return NextResponse.json({ error: "Order lookup failed" }, { status: 500 });
+    }
+
+    if (existingOrder?.status === "completed") {
+      console.log(`[Webhook] Session ${session.id} already completed, skipping.`);
+      return NextResponse.json({ received: true, skipped: true });
+    }
+
+    // --- Atomic transition: pending -> completed ---
+    // Only succeeds if status is still pending (prevents race conditions with concurrent webhooks)
+    const { data: updated, error: updateError } = await serviceSupabase
       .from("payment_orders")
       .update({ status: "completed" })
-      .eq("stripe_session_id", session.id);
+      .eq("stripe_session_id", session.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
 
-    // Add credits
-    await addCredits(userId, credits, "purchase", session.id);
+    if (updateError) {
+      console.error("[Webhook] Failed to update order status:", updateError);
+      return NextResponse.json({ error: "Order update failed" }, { status: 500 });
+    }
 
-    console.log(`[Webhook] Added ${credits} credits to user ${userId}`);
+    if (!updated) {
+      // Another webhook invocation already transitioned this order
+      console.log(`[Webhook] Session ${session.id} race condition, skipping credit add.`);
+      return NextResponse.json({ received: true, skipped: true });
+    }
+
+    // --- Credit add (safe: only reached once per session) ---
+    const result = await addCredits(userId, credits, "purchase", session.id);
+    if (!result.success) {
+      console.error(`[Webhook] Credit add failed for session ${session.id}`);
+      // Revert order status to allow retry
+      await serviceSupabase
+        .from("payment_orders")
+        .update({ status: "pending" })
+        .eq("stripe_session_id", session.id);
+      return NextResponse.json({ error: "Credit add failed" }, { status: 500 });
+    }
+
+    console.log(`[Webhook] Added ${credits} credits to user ${userId} (session ${session.id})`);
   }
 
   return NextResponse.json({ received: true });
