@@ -80,7 +80,7 @@ export default function AuthForm({
     setFormError(null);
     setFormSuccess(null);
 
-    const safeEmail = email.trim();
+    const safeEmail = toHalfWidth(email).trim().toLowerCase();
     const safePassword = toHalfWidth(password).trim();
 
     if (!safeEmail) {
@@ -158,7 +158,7 @@ export default function AuthForm({
         <input
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setEmail(toHalfWidth(e.target.value))}
           placeholder="you@example.com"
           className={`w-full px-4 py-3 rounded-xl border-2 outline-none font-bold text-sm ${
             formError
@@ -172,6 +172,9 @@ export default function AuthForm({
           inputMode="email"
           required
         />
+        <p className="text-[11px] font-bold text-slate-500">
+          全角で入力しても、自動で半角に寄せます。
+        </p>
       </div>
 
       <div className="space-y-2">
@@ -199,7 +202,7 @@ export default function AuthForm({
           required
         />
         <p className="text-[11px] font-bold text-slate-500">
-          パスワードは半角英数字で入力してください。
+          パスワードは全角入力でも、自動で半角に寄せて送信します。
         </p>
       </div>
 
