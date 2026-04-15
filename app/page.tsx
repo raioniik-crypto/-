@@ -12,15 +12,6 @@ import {
   Layers,
   ExternalLink,
 } from "lucide-react";
-
-// X (Twitter) logo SVG — lucide's "X" icon is a close/cross icon, not the Twitter logo
-function XLogoIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
 import Mascot from "@/components/Mascot";
 import InputForm from "@/components/InputForm";
 import OutputPanel from "@/components/OutputPanel";
@@ -31,13 +22,28 @@ import SettingsModal from "@/components/SettingsModal";
 import { FormInput, GenerateResult, INITIAL_FORM, AdjustTarget } from "./types";
 import { CREATOR, MASCOT_MESSAGES } from "@/lib/constants";
 
+// X (Twitter) logo SVG — lucide's "X" icon is a close/cross icon, not the Twitter logo
+function XLogoIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 type AppStatus = "input" | "generating" | "output";
 
 const STORAGE_KEY = "sns-content-generator-draft";
 
 // --- Sub-components ---
 
-function Header({ onOpenTemplates, onOpenSettings }: { onOpenTemplates: () => void; onOpenSettings: () => void }) {
+function Header({
+  onOpenTemplates,
+  onOpenSettings,
+}: {
+  onOpenTemplates: () => void;
+  onOpenSettings: () => void;
+}) {
   return (
     <header className="border-b-4 border-black bg-yellow-400 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
@@ -182,16 +188,17 @@ function CreatorCard() {
     <div className="bg-white border-4 border-black rounded-3xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden group">
       <div className="absolute -top-6 -right-6 w-24 h-24 bg-pink-500/10 rounded-full group-hover:scale-150 transition-transform duration-700" />
       <div className="relative z-10 flex flex-col gap-4">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <Mascot size="sm" className="shrink-0" />
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Created by</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Created by
+            </p>
             <h3 className="font-black text-lg leading-tight">{CREATOR.name}</h3>
             <p className="text-pink-600 font-black text-xs">{CREATOR.tagline}</p>
           </div>
         </div>
-        {/* Links */}
+
         <div className="grid grid-cols-2 gap-3">
           <a
             href={CREATOR.links[0].url}
@@ -225,19 +232,35 @@ export default function Home() {
   const [status, setStatus] = useState<AppStatus>("input");
   const [error, setError] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: "" });
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info";
+  }>({
+    visible: false,
+    message: "",
+    type: "success",
+  });
   const [hydrated, setHydrated] = useState(false);
   const [mascotMessage, setMascotMessage] = useState(MASCOT_MESSAGES.idle);
   const [adjusting, setAdjusting] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const showToast = useCallback((message: string) => {
-    setToast({ visible: true, message });
-    setTimeout(() => setToast({ visible: false, message: "" }), 2000);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      type: "success" | "error" | "info" = "success",
+      duration = 4000
+    ) => {
+      setToast({ visible: true, message, type });
+      setTimeout(() => {
+        setToast({ visible: false, message: "", type: "success" });
+      }, duration);
+    },
+    []
+  );
 
-  // Restore from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -250,7 +273,6 @@ export default function Home() {
     setHydrated(true);
   }, []);
 
-  // Save to localStorage
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -307,7 +329,6 @@ export default function Home() {
       navigator.clipboard.writeText(text);
       setMascotMessage(MASCOT_MESSAGES.copy);
       showToast("コピーしました！");
-      // Revert mascot message after a delay
       setTimeout(() => {
         setMascotMessage((prev) =>
           prev === MASCOT_MESSAGES.copy
@@ -348,7 +369,7 @@ export default function Home() {
         showToast("調整しました！");
       } catch (e) {
         const msg = e instanceof Error ? e.message : "調整中にエラーが発生しました。";
-        showToast(msg);
+        showToast(msg, "error");
         setMascotMessage(MASCOT_MESSAGES.error);
       } finally {
         setAdjusting(false);
@@ -372,15 +393,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen font-sans text-slate-900 pb-32 bg-slate-50">
-      <Header onOpenTemplates={() => setShowTemplateModal(true)} onOpenSettings={() => setShowSettingsModal(true)} />
+      <Header
+        onOpenTemplates={() => setShowTemplateModal(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
+      />
 
       <main className="max-w-7xl mx-auto px-4 pt-4">
         <ProgressBar status={status} />
         <UsageGuide mascotMessage={mascotMessage} />
 
-        {/* 2 Column Grid: 5:7 matching reference */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Input */}
           <div className="lg:col-span-5 space-y-6">
             <InputForm
               form={form}
@@ -394,7 +416,6 @@ export default function Home() {
             <CreatorCard />
           </div>
 
-          {/* Right: Output */}
           <div className="lg:col-span-7 space-y-6">
             <OutputPanel
               result={result}
@@ -409,17 +430,14 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Toast */}
-      <Toast visible={toast.visible} message={toast.message} />
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
 
-      {/* Reset Confirm Modal */}
       <ResetConfirmModal
         isOpen={showResetConfirm}
         onCancel={() => setShowResetConfirm(false)}
         onConfirm={handleResetConfirm}
       />
 
-      {/* Template Modal */}
       <TemplateModal
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
@@ -431,7 +449,6 @@ export default function Home() {
         onToast={showToast}
       />
 
-      {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
@@ -441,7 +458,6 @@ export default function Home() {
         }}
       />
 
-      {/* Footer */}
       <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40 shadow-[0_-4px_0_0_rgba(0,0,0,1)]">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-[10px] font-black">
@@ -454,7 +470,9 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">by {CREATOR.name}</span>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              by {CREATOR.name}
+            </span>
             <a
               href={CREATOR.links[0].url}
               target="_blank"
@@ -463,7 +481,9 @@ export default function Home() {
             >
               <XLogoIcon size={12} />
             </a>
-            <span className="text-[9px] font-black text-slate-400">Powered by Gemini API</span>
+            <span className="text-[9px] font-black text-slate-400">
+              Powered by Gemini API
+            </span>
           </div>
         </div>
       </footer>
