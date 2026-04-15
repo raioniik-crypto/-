@@ -63,7 +63,6 @@ function toHalfWidth(value: string) {
 
 export default function AuthForm({
   onSuccess,
-  onToast: _onToast,
 }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

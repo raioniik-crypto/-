@@ -246,6 +246,7 @@ export default function Home() {
   const [adjusting, setAdjusting] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [creditRefreshSignal, setCreditRefreshSignal] = useState(0);
 
   const showToast = useCallback(
     (
@@ -261,21 +262,33 @@ export default function Home() {
     []
   );
 
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const authStatus = params.get("auth_status");
-  const authMessage = params.get("auth_message");
+  // Detect auth callback return (email confirmation success/failure)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const authStatus = params.get("auth_status");
+    const authMessage = params.get("auth_message");
 
-  if (!authStatus || !authMessage) return;
+    if (!authStatus || !authMessage) return;
 
-  showToast(
-    authMessage,
-    authStatus === "success" ? "success" : "error",
-    5000
-  );
+    showToast(
+      authMessage,
+      authStatus === "success" ? "success" : "error",
+      5000
+    );
 
-  window.history.replaceState({}, "", window.location.pathname);
-}, [showToast]);
+    if (authStatus === "success") {
+      // Confirmed email -> user is now logged in; refresh credits shown in UI
+      setMascotMessage("メール確認が完了したよ！");
+      setCreditRefreshSignal((n) => n + 1);
+    } else {
+      // Expired/used link etc. -> prompt re-login via settings modal
+      setMascotMessage("うまくいかなかった...もう一度ログインしてみてね！");
+      setShowSettingsModal(true);
+    }
+
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [showToast]);
 
   useEffect(() => {
     try {
@@ -298,6 +311,38 @@ useEffect(() => {
     }
   }, [form, hydrated]);
 
+  // Detect Stripe Checkout return query (?payment=success / cancelled)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (!payment) return;
+
+    if (payment === "success") {
+      showToast("決済が完了しました！クレジットを反映しています...");
+      setMascotMessage("購入ありがとう！クレジットを追加したよ！");
+      // Open settings modal to show updated balance
+      setShowSettingsModal(true);
+      // Bump refresh signal so SettingsModal re-fetches balance
+      // Webhook processing may be slightly delayed, so retry a few times
+      setCreditRefreshSignal((n) => n + 1);
+      const retryTimers = [1500, 3500, 6000].map((delay) =>
+        setTimeout(() => setCreditRefreshSignal((n) => n + 1), delay)
+      );
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+      return () => {
+        retryTimers.forEach(clearTimeout);
+      };
+    }
+
+    if (payment === "cancelled") {
+      showToast("決済をキャンセルしました");
+      setMascotMessage("決済はキャンセルされたよ。またいつでもどうぞ！");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [showToast]);
+
   const handleGenerate = useCallback(async () => {
     setStatus("generating");
     setError(null);
@@ -314,12 +359,17 @@ useEffect(() => {
       const data = await res.json();
 
       if (!res.ok) {
+        // クレジット不足・未ログインは設定モーダルで対応できるよう自動で開く
+        if (data?.insufficientCredits || data?.requireAuth) {
+          setShowSettingsModal(true);
+        }
         throw new Error(data.error || "生成に失敗しました。");
       }
 
       setResult(data as GenerateResult);
       setStatus("output");
       setMascotMessage(MASCOT_MESSAGES.success);
+      setCreditRefreshSignal((n) => n + 1);
       showToast("コンテンツを生成しました");
     } catch (e) {
       setError(
@@ -374,6 +424,9 @@ useEffect(() => {
 
         const data = await res.json();
         if (!res.ok) {
+          if (data?.insufficientCredits || data?.requireAuth) {
+            setShowSettingsModal(true);
+          }
           throw new Error(data.error || "調整に失敗しました。");
         }
 
@@ -382,6 +435,7 @@ useEffect(() => {
           return { ...prev, [target]: data.data };
         });
         setMascotMessage(MASCOT_MESSAGES.adjusted);
+        setCreditRefreshSignal((n) => n + 1);
         showToast("調整しました！");
       } catch (e) {
         const msg = e instanceof Error ? e.message : "調整中にエラーが発生しました。";
@@ -470,8 +524,9 @@ useEffect(() => {
         onClose={() => setShowSettingsModal(false)}
         onToast={showToast}
         onAuthChange={() => {
-          // refresh page state if needed
+          setCreditRefreshSignal((n) => n + 1);
         }}
+        refreshSignal={creditRefreshSignal}
       />
 
       <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40 shadow-[0_-4px_0_0_rgba(0,0,0,1)]">
