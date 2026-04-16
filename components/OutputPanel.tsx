@@ -12,6 +12,7 @@ import {
   AlertCircle,
   ExternalLink,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import {
   GenerateResult,
@@ -33,6 +34,8 @@ interface OutputPanelProps {
   onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>;
   adjusting: boolean;
   onExampleFill?: (data: FormInput) => void;
+  /** Re-run full generation from current input (same as initial generate) */
+  onRegenerate?: () => void;
 }
 
 const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: string }[] = [
@@ -573,7 +576,7 @@ function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: Gener
 
 // --- Main Panel ---
 
-export default function OutputPanel({ result, loading, error, onRetry, onCopy, onAdjust, adjusting, onExampleFill }: OutputPanelProps) {
+export default function OutputPanel({ result, loading, error, onRetry, onCopy, onAdjust, adjusting, onExampleFill, onRegenerate }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");
 
   return (
@@ -604,13 +607,23 @@ export default function OutputPanel({ result, loading, error, onRetry, onCopy, o
 
       {/* Content */}
       <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-white">
-        {/* Post-generation guidance (only when results exist) */}
+        {/* Post-generation action bar (only when results exist) */}
         {result && !loading && !error && (
-          <div className="mb-4 px-3 py-2 bg-indigo-50 border-2 border-black rounded-xl flex items-center gap-2">
+          <div className="mb-4 p-3 bg-indigo-50 border-2 border-black rounded-xl flex flex-wrap items-center gap-2">
             <Info size={14} className="text-indigo-500 shrink-0" />
-            <p className="text-[10px] font-bold text-slate-500">
-              各タブからコピーできます。微調整ボタンでトーンの変更も可能です。
+            <p className="text-[10px] font-bold text-slate-500 mr-auto">
+              コピー・微調整・別案作成ができます
             </p>
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                disabled={loading || adjusting}
+                className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-40"
+              >
+                <RefreshCw size={12} />
+                別案を作る
+              </button>
+            )}
           </div>
         )}
 

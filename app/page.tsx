@@ -393,7 +393,7 @@ export default function Home() {
       setStatus("output");
       setMascotMessage(MASCOT_MESSAGES.success);
       setCreditRefreshSignal((n) => n + 1);
-      showToast("生成完了！ 各タブからコピー・調整できます", "success", 5000);
+      showToast("生成完了！ コピー・微調整・別案作成ができます", "success", 5000);
     } catch (e) {
       setError(
         friendlyErrorMessage(e, "不明なエラーが発生しました。もう一度お試しください。")
@@ -523,6 +523,7 @@ export default function Home() {
               onCopy={handleCopy}
               onAdjust={handleAdjust}
               adjusting={adjusting}
+              onRegenerate={handleGenerate}
               onExampleFill={(data) => {
                 setForm(data);
                 showToast("入力欄にサンプルを入れました。自由に編集できます", "info");
