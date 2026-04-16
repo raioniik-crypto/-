@@ -346,6 +346,7 @@ async function main(): Promise<void> {
       `Already processed (prev ID: ${processed[fingerprint].process_id})`
     );
     console.log("Duplicate file — skipping.");
+    console.log(JSON.stringify({ result: "duplicate_skipped", process_id: processId, prev_process_id: processed[fingerprint].process_id }));
     process.exit(0);
   }
 
@@ -367,6 +368,7 @@ async function main(): Promise<void> {
     appendRunLog(runLog);
     clog(processId, "ERROR", `Transcription failed: ${msg}`);
     if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "TRANSCRIBE", msg);
+    console.log(JSON.stringify({ result: "failed", process_id: processId, failed_step: "TRANSCRIBE", error: msg }));
     process.exit(1);
   }
 
@@ -432,6 +434,7 @@ async function main(): Promise<void> {
     appendRunLog(runLog);
     clog(processId, "ERROR", `Save failed: ${msg}`);
     if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "SAVE", msg);
+    console.log(JSON.stringify({ result: "failed", process_id: processId, failed_step: "SAVE", error: msg }));
     process.exit(1);
   }
 
@@ -453,7 +456,9 @@ async function main(): Promise<void> {
     runLog.error = "Orchestration failed — rescue save used";
   }
   appendRunLog(runLog);
-  clog(processId, "DONE", "Pipeline complete");
+  const resultStatus = claude ? "success" : "transcript_only";
+  clog(processId, "DONE", `Pipeline complete (${resultStatus})`);
+  console.log(JSON.stringify({ result: resultStatus, process_id: processId, title: claude ? claude.title : `音声メモ_${audioFilename}`, type: claude ? claude.type : "inbox", saved_path: savedPath }));
 }
 
 main();
