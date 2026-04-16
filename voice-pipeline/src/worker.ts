@@ -50,7 +50,7 @@ export async function runOnce(): Promise<WorkerResult> {
       artifact_paths: artifactPaths,
       error_message: null,
     });
-    console.log(`[worker] ${completed.job_id} → completed`);
+    console.log(`[worker] ${completed.job_id} \u2192 completed`);
     return {
       result: "processed",
       job_id: completed.job_id,
@@ -59,7 +59,7 @@ export async function runOnce(): Promise<WorkerResult> {
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[worker] ${running.job_id} → failed: ${msg}`);
+    console.error(`[worker] ${running.job_id} \u2192 failed: ${msg}`);
     // 5. Move to failed
     try {
       await moveJob(running, "running", "failed", {
@@ -101,27 +101,7 @@ async function executeMemoCapture(
 
   const nextActions = extractNextActions(job.instruction);
 
-  const markdown = `---
-title: "${displayTitle}"
-created_at: "${isoDate}"
-type: "memo_capture"
-source: "${job.source ?? "api"}"
-requested_by: "${job.requested_by ?? "unknown"}"
-job_id: "${job.job_id}"
-status: "completed"
----
-
-# ${displayTitle}
-
-## 要点
-${job.instruction}
-
-## 本文
-${job.instruction}
-
-## 次アクション
-${nextActions}
-`;
+  const markdown = `---\ntitle: "${displayTitle}"\ncreated_at: "${isoDate}"\ntype: "memo_capture"\nsource: "${job.source ?? "api"}"\nrequested_by: "${job.requested_by ?? "unknown"}"\njob_id: "${job.job_id}"\nstatus: "completed"\n---\n\n# ${displayTitle}\n\n## \u8981\u70b9\n${job.instruction}\n\n## \u672c\u6587\n${job.instruction}\n\n## \u6b21\u30a2\u30af\u30b7\u30e7\u30f3\n${nextActions}\n`;
 
   await putFile(repoPath, markdown, `memo: ${displayTitle} (${job.job_id})`);
 
@@ -132,13 +112,76 @@ ${nextActions}
 }
 
 function extractNextActions(text: string): string {
-  const lines = text.split(/[\r\n]+/).filter((l) => /^[-・●]/.test(l.trim()));
+  const lines = text.split(/[\r\n]+/).filter((l) => /^[-\u30fb\u25cf]/.test(l.trim()));
   if (lines.length > 0) return lines.join("\n");
-  return "なし";
+  return "\u306a\u3057";
 }
 
 // ============================================================
-// CLI entry point: npx tsx src/worker.ts
+// Loop mode
+// ============================================================
+
+const POLL_MS = parseInt(process.env.WORKER_POLL_INTERVAL_MS || "60000", 10);
+const LOG_NO_JOB = process.env.WORKER_LOG_NO_JOB === "true";
+
+let stopping = false;
+let busy = false;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    // Allow the timer to not block process exit once stopping
+    if (typeof timer === "object" && "unref" in timer) timer.unref();
+  });
+}
+
+export async function runLoop(): Promise<void> {
+  console.log(`[worker:loop] Started \u2014 polling every ${POLL_MS}ms`);
+
+  while (!stopping) {
+    busy = true;
+    try {
+      const r = await runOnce();
+      if (r.result === "processed") {
+        console.log(`[worker:loop] Processed ${r.job_id} \u2192 ${r.status}`);
+      } else if (r.result === "error") {
+        console.error(`[worker:loop] Error on ${r.job_id}: ${r.error}`);
+      } else if (LOG_NO_JOB) {
+        console.log("[worker:loop] No queued jobs.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[worker:loop] Unexpected error: ${msg}`);
+    }
+    busy = false;
+
+    if (stopping) break;
+
+    // Interruptible sleep: check stopping every second
+    const rounds = Math.ceil(POLL_MS / 1000);
+    for (let i = 0; i < rounds && !stopping; i++) {
+      await sleep(Math.min(1000, POLL_MS));
+    }
+  }
+
+  console.log("[worker:loop] Stopped.");
+}
+
+// ============================================================
+// Graceful shutdown
+// ============================================================
+
+function handleSignal(signal: string) {
+  if (stopping) return; // already stopping
+  console.log(`[worker] Received ${signal}, shutting down${busy ? " after current job..." : "..."}`);
+  stopping = true;
+}
+
+process.on("SIGINT", () => handleSignal("SIGINT"));
+process.on("SIGTERM", () => handleSignal("SIGTERM"));
+
+// ============================================================
+// CLI entry point
 // ============================================================
 
 const isCli =
@@ -146,13 +189,24 @@ const isCli =
   (process.argv[1].endsWith("worker.ts") || process.argv[1].endsWith("worker"));
 
 if (isCli) {
-  runOnce()
-    .then((r) => {
-      console.log(JSON.stringify(r, null, 2));
-      process.exit(r.result === "error" ? 1 : 0);
-    })
-    .catch((err) => {
-      console.error("[worker] Fatal:", err);
-      process.exit(1);
-    });
+  const isLoop = process.argv.includes("--loop");
+
+  if (isLoop) {
+    runLoop()
+      .then(() => process.exit(0))
+      .catch((err) => {
+        console.error("[worker:loop] Fatal:", err);
+        process.exit(1);
+      });
+  } else {
+    runOnce()
+      .then((r) => {
+        console.log(JSON.stringify(r, null, 2));
+        process.exit(r.result === "error" ? 1 : 0);
+      })
+      .catch((err) => {
+        console.error("[worker] Fatal:", err);
+        process.exit(1);
+      });
+  }
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx src/pipeline.ts",
     "server": "tsx src/server.ts",
-    "worker": "tsx src/worker.ts"
+    "worker": "tsx src/worker.ts",
+    "worker:loop": "tsx src/worker.ts --loop"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
