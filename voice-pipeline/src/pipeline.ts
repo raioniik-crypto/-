@@ -11,7 +11,10 @@ import { randomUUID, createHash } from "crypto";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH;
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const GITHUB_REPO = process.env.GITHUB_REPO;
+const GITHUB_BRANCH = process.env.GITHUB_BRANCH || "main";
+const GITHUB_VAULT_PATH = process.env.GITHUB_VAULT_PATH || "";
 const NOTIFY_WEBHOOK_URL = process.env.NOTIFY_WEBHOOK_URL;
 const NOTIFY_PROVIDER = process.env.NOTIFY_PROVIDER || "slack";
 const TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || "whisper-1";
@@ -46,6 +49,17 @@ interface RunLog {
   orchestration_status: "success" | "failed" | "skipped";
   save_status: "success" | "failed";
   notify_status: "success" | "failed" | "skipped";
+  error?: string;
+}
+
+export interface PipelineResult {
+  result: "success" | "transcript_only" | "duplicate_skipped" | "failed";
+  process_id: string;
+  title?: string;
+  type?: string;
+  saved_path?: string;
+  prev_process_id?: string;
+  failed_step?: string;
   error?: string;
 }
 
@@ -168,7 +182,7 @@ async function orchestrate(
 }
 
 // ============================================================
-// Step 3: Save to Obsidian
+// Step 3: Save to GitHub
 // ============================================================
 
 const FOLDER_MAP: Record<string, string> = {
@@ -192,21 +206,20 @@ interface SaveData {
   reason: string;
 }
 
-function saveToObsidian(data: SaveData): string {
+async function saveToGitHub(data: SaveData): Promise<string> {
   const now = new Date();
   const isoDate = now.toISOString();
   const dateStr = isoDate.slice(0, 10);
   const timeStr = now.toTimeString().slice(0, 5).replace(":", "");
 
   const folder = FOLDER_MAP[data.type] || "Inbox";
-  const targetDir = path.join(OBSIDIAN_VAULT_PATH!, folder);
-  fs.mkdirSync(targetDir, { recursive: true });
-
   const safeTitle = data.title
     .replace(/[/\\:*?"<>|]/g, "_")
     .slice(0, 80);
   const filename = `${dateStr}_${timeStr}_${safeTitle}.md`;
-  const filePath = path.join(targetDir, filename);
+
+  const base = GITHUB_VAULT_PATH ? GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/" : "";
+  const repoPath = `${base}${folder}/${filename}`;
 
   const markdown = `---
 title: "${data.title}"
@@ -238,8 +251,32 @@ ${data.rawTranscript}
 ${data.reason}
 `;
 
-  fs.writeFileSync(filePath, markdown, "utf-8");
-  return filePath;
+  const content = Buffer.from(markdown, "utf-8").toString("base64");
+  const encodedPath = repoPath.split("/").map(s => encodeURIComponent(s)).join("/");
+
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_REPO}/contents/${encodedPath}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: `voice: ${data.title}`,
+        content,
+        branch: GITHUB_BRANCH,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${errBody.slice(0, 200)}`);
+  }
+
+  return repoPath;
 }
 
 // ============================================================
@@ -291,37 +328,20 @@ async function sendWebhook(message: string): Promise<boolean> {
 }
 
 // ============================================================
-// Main
+// Core pipeline (exported for server.ts)
 // ============================================================
 
-async function main(): Promise<void> {
-  const audioPath = process.argv[2];
-
-  if (!audioPath) {
-    console.error('Usage: npm run dev -- "<audio-file-path>"');
-    console.error('       npx tsx src/pipeline.ts "<audio-file-path>"');
-    process.exit(1);
-  }
-  if (!OPENAI_API_KEY) {
-    console.error("Error: OPENAI_API_KEY is not set");
-    process.exit(1);
-  }
-  if (!ANTHROPIC_API_KEY) {
-    console.error("Error: ANTHROPIC_API_KEY is not set");
-    process.exit(1);
-  }
-  if (!OBSIDIAN_VAULT_PATH) {
-    console.error("Error: OBSIDIAN_VAULT_PATH is not set");
-    process.exit(1);
-  }
-  if (!fs.existsSync(audioPath)) {
-    console.error(`Error: Audio file not found: ${audioPath}`);
-    process.exit(1);
-  }
-
+export async function runPipeline(audioPath: string): Promise<PipelineResult> {
   const processId = randomUUID().slice(0, 8);
   const audioFilename = path.basename(audioPath);
   const startedAt = new Date().toISOString();
+
+  // Validate env
+  if (!OPENAI_API_KEY) return { result: "failed", process_id: processId, error: "OPENAI_API_KEY not set" };
+  if (!ANTHROPIC_API_KEY) return { result: "failed", process_id: processId, error: "ANTHROPIC_API_KEY not set" };
+  if (!GITHUB_TOKEN) return { result: "failed", process_id: processId, error: "GITHUB_TOKEN not set" };
+  if (!GITHUB_REPO) return { result: "failed", process_id: processId, error: "GITHUB_REPO not set" };
+  if (!fs.existsSync(audioPath)) return { result: "failed", process_id: processId, error: `File not found: ${audioPath}` };
 
   const runLog: RunLog = {
     process_id: processId,
@@ -340,14 +360,8 @@ async function main(): Promise<void> {
   const fingerprint = getFingerprint(audioPath);
   const processed = loadProcessed();
   if (processed[fingerprint]) {
-    clog(
-      processId,
-      "SKIP",
-      `Already processed (prev ID: ${processed[fingerprint].process_id})`
-    );
-    console.log("Duplicate file — skipping.");
-    console.log(JSON.stringify({ result: "duplicate_skipped", process_id: processId, prev_process_id: processed[fingerprint].process_id }));
-    process.exit(0);
+    clog(processId, "SKIP", `Already processed (prev ID: ${processed[fingerprint].process_id})`);
+    return { result: "duplicate_skipped", process_id: processId, prev_process_id: processed[fingerprint].process_id };
   }
 
   const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -368,8 +382,7 @@ async function main(): Promise<void> {
     appendRunLog(runLog);
     clog(processId, "ERROR", `Transcription failed: ${msg}`);
     if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "TRANSCRIBE", msg);
-    console.log(JSON.stringify({ result: "failed", process_id: processId, failed_step: "TRANSCRIBE", error: msg }));
-    process.exit(1);
+    return { result: "failed", process_id: processId, failed_step: "TRANSCRIBE", error: msg };
   }
 
   // Step 2: Claude orchestration
@@ -378,26 +391,22 @@ async function main(): Promise<void> {
     clog(processId, "ORCHESTRATE", "Starting...");
     claude = await orchestrate(anthropic, rawTranscript);
     runLog.orchestration_status = "success";
-    clog(
-      processId,
-      "ORCHESTRATE",
-      `Done — type=${claude.type}, title="${claude.title}", confidence=${claude.confidence}`
-    );
+    clog(processId, "ORCHESTRATE", `Done — type=${claude.type}, title="${claude.title}", confidence=${claude.confidence}`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     runLog.orchestration_status = "failed";
     clog(processId, "ORCHESTRATE", `Failed: ${msg} — falling back to rescue save`);
   }
 
-  // Step 3: Save to Obsidian
+  // Step 3: Save to GitHub
   let savedPath: string;
   try {
-    clog(processId, "SAVE", "Saving...");
+    clog(processId, "SAVE", "Saving to GitHub...");
     if (claude) {
       const nextActionsStr = claude.next_actions.length > 0
         ? claude.next_actions.map((a) => `- ${a}`).join("\n")
         : "なし";
-      savedPath = saveToObsidian({
+      savedPath = await saveToGitHub({
         processId,
         audioFilename,
         rawTranscript,
@@ -410,8 +419,7 @@ async function main(): Promise<void> {
         reason: claude.reason,
       });
     } else {
-      // Rescue: save raw transcript only
-      savedPath = saveToObsidian({
+      savedPath = await saveToGitHub({
         processId,
         audioFilename,
         rawTranscript,
@@ -434,8 +442,7 @@ async function main(): Promise<void> {
     appendRunLog(runLog);
     clog(processId, "ERROR", `Save failed: ${msg}`);
     if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "SAVE", msg);
-    console.log(JSON.stringify({ result: "failed", process_id: processId, failed_step: "SAVE", error: msg }));
-    process.exit(1);
+    return { result: "failed", process_id: processId, failed_step: "SAVE", error: msg };
   }
 
   // Step 4: Notify
@@ -456,9 +463,36 @@ async function main(): Promise<void> {
     runLog.error = "Orchestration failed — rescue save used";
   }
   appendRunLog(runLog);
+
   const resultStatus = claude ? "success" : "transcript_only";
   clog(processId, "DONE", `Pipeline complete (${resultStatus})`);
-  console.log(JSON.stringify({ result: resultStatus, process_id: processId, title: claude ? claude.title : `音声メモ_${audioFilename}`, type: claude ? claude.type : "inbox", saved_path: savedPath }));
+  return {
+    result: resultStatus,
+    process_id: processId,
+    title: claude ? claude.title : `音声メモ_${audioFilename}`,
+    type: claude ? claude.type : "inbox",
+    saved_path: savedPath,
+  };
 }
 
-main();
+// ============================================================
+// CLI entry point
+// ============================================================
+
+async function main(): Promise<void> {
+  const audioPath = process.argv[2];
+  if (!audioPath) {
+    console.error('Usage: npm run dev -- "<audio-file-path>"');
+    console.error('       npx tsx src/pipeline.ts "<audio-file-path>"');
+    process.exit(1);
+  }
+
+  const result = await runPipeline(audioPath);
+  console.log(JSON.stringify(result));
+  process.exit(result.result === "failed" ? 1 : 0);
+}
+
+// Only run main() when this file is executed directly (not imported)
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__dirname, "pipeline.ts")) {
+  main();
+}
