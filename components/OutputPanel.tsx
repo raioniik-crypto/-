@@ -111,15 +111,39 @@ function EmptyState() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-full flex flex-col items-center justify-center text-center p-12"
+      className="flex flex-col items-center justify-center text-center px-6 py-10"
     >
-      <div className="w-24 h-24 bg-yellow-100 border-4 border-black rounded-3xl flex items-center justify-center text-yellow-600 mb-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-        <Sparkles size={48} />
+      <div className="w-20 h-20 bg-yellow-100 border-4 border-black rounded-3xl flex items-center justify-center text-yellow-600 mb-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+        <Sparkles size={40} />
       </div>
-      <h3 className="text-2xl font-black mb-3">準備万端です！</h3>
-      <p className="text-slate-500 font-bold max-w-sm">
-        左側のフォームを入力して「まとめて生成」ボタンを押すと、ここにコンテンツが表示されます。
+
+      <h3 className="text-xl font-black mb-2">SNS投稿をすぐ作れます</h3>
+      <p className="text-sm text-slate-500 font-bold max-w-xs mb-5">
+        左の入力欄に情報を入れると、投稿本文・カルーセル・画像プロンプト・Canva素材をまとめて生成します
       </p>
+
+      {/* Example use cases */}
+      <div className="w-full max-w-sm space-y-2 mb-5">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">こんな用途に使えます</p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {["商品・サービス紹介", "イベント告知", "キャンペーン案内", "ノウハウ共有"].map((label) => (
+            <span
+              key={label}
+              className="px-3 py-1.5 bg-white border-2 border-black rounded-lg text-[11px] font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* First step */}
+      <div className="w-full max-w-sm p-4 bg-cyan-50 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <p className="text-xs font-black text-cyan-700 mb-1">最初の一歩</p>
+        <p className="text-[11px] font-bold text-slate-600">
+          商品名と伝えたい内容を入力して「まとめて生成」を押すだけ。箇条書きやメモでもOKです。
+        </p>
+      </div>
     </motion.div>
   );
 }

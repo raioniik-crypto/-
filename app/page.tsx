@@ -393,7 +393,7 @@ export default function Home() {
       setStatus("output");
       setMascotMessage(MASCOT_MESSAGES.success);
       setCreditRefreshSignal((n) => n + 1);
-      showToast("コンテンツを生成しました");
+      showToast("生成完了！ 各タブからコピー・調整できます", "success", 5000);
     } catch (e) {
       setError(
         friendlyErrorMessage(e, "不明なエラーが発生しました。もう一度お試しください。")

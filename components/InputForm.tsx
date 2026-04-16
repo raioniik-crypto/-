@@ -322,7 +322,7 @@ export default function InputForm({
         <div className="p-6 border-b-4 border-black bg-indigo-50 flex items-center justify-between">
           <h2 className="font-black text-xl flex items-center gap-2">
             <FileText size={24} className="text-indigo-600" />
-            入力エリア
+            投稿の情報を入力
           </h2>
           <button
             onClick={handleAutoFill}
@@ -332,8 +332,15 @@ export default function InputForm({
           </button>
         </div>
 
+        {/* Input guidance */}
+        <div className="px-6 pt-4 pb-0 bg-white">
+          <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+            商品名と概要があれば生成できます。箇条書きやメモでもOK。入力が多いほど精度が上がります。
+          </p>
+        </div>
+
         {/* Fields */}
-        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar bg-white">
+        <div className="px-6 pb-6 pt-4 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar bg-white">
           {renderedFields}
 
           {/* Image direction chips */}
