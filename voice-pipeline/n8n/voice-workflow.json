@@ -1,0 +1,88 @@
+{
+  "name": "Voice to Obsidian Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-upload",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd {{$env.VOICE_PIPELINE_PATH}} && npx tsx src/pipeline.ts \"{{$json.body.audioPath}}\""
+      },
+      "id": "run-pipeline",
+      "name": "Run Pipeline",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-result",
+      "name": "Check Result",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { status: 'success', output: $input.first().json.stdout } }];"
+      },
+      "id": "success",
+      "name": "Success",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { status: 'error', output: $input.first().json.stderr } }];"
+      },
+      "id": "failure",
+      "name": "Failure",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [{ "node": "Run Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run Pipeline": {
+      "main": [
+        [{ "node": "Check Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Result": {
+      "main": [
+        [{ "node": "Success", "type": "main", "index": 0 }],
+        [{ "node": "Failure", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

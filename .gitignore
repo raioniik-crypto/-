@@ -27,6 +27,13 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
+
+# voice-pipeline
+voice-pipeline/node_modules/
+voice-pipeline/logs/
+voice-pipeline/.env
+voice-pipeline/dist/
 
 # vercel
 .vercel
