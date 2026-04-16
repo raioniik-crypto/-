@@ -35,6 +35,27 @@ type AppStatus = "input" | "generating" | "output";
 
 const STORAGE_KEY = "sns-content-generator-draft";
 
+/**
+ * Sanitize raw error messages so "Failed to fetch", "TypeError", etc.
+ * are never shown directly to the user.
+ */
+function friendlyErrorMessage(e: unknown, fallback: string): string {
+  if (!(e instanceof Error)) return fallback;
+  const msg = e.message;
+  // Network-level failures surfaced by the browser Fetch API
+  if (
+    msg === "Failed to fetch" ||
+    msg.includes("NetworkError") ||
+    msg.includes("network") ||
+    msg.includes("ECONNREFUSED") ||
+    msg.includes("abort")
+  ) {
+    return "通信エラーが発生しました。ネットワーク接続を確認してもう一度お試しください。";
+  }
+  // Already a Japanese user-facing message from our API
+  return msg;
+}
+
 // --- Sub-components ---
 
 function Header({
@@ -373,7 +394,7 @@ export default function Home() {
       showToast("コンテンツを生成しました");
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "不明なエラーが発生しました。もう一度お試しください。"
+        friendlyErrorMessage(e, "不明なエラーが発生しました。もう一度お試しください。")
       );
       setStatus("input");
       setMascotMessage(MASCOT_MESSAGES.error);
@@ -438,8 +459,10 @@ export default function Home() {
         setCreditRefreshSignal((n) => n + 1);
         showToast("調整しました！");
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "調整中にエラーが発生しました。";
-        showToast(msg, "error");
+        showToast(
+          friendlyErrorMessage(e, "調整中にエラーが発生しました。"),
+          "error"
+        );
         setMascotMessage(MASCOT_MESSAGES.error);
       } finally {
         setAdjusting(false);

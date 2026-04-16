@@ -39,20 +39,26 @@ export default function SettingsModal({
 
   const checkAuth = useCallback(async () => {
     setChecking(true);
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      setUser({ id: authUser.id, email: authUser.email || "" });
-      // Fetch balance
-      try {
-        const res = await fetch("/api/credits");
-        if (res.ok) {
-          const data = await res.json();
-          setBalance(data.balance);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        setUser({ id: authUser.id, email: authUser.email || "" });
+        try {
+          const res = await fetch("/api/credits");
+          if (res.ok) {
+            const data = await res.json();
+            setBalance(data.balance);
+          }
+        } catch {
+          // balance fetch failed — leave previous value or null
         }
-      } catch {
-        // ignore
+      } else {
+        setUser(null);
+        setBalance(null);
       }
-    } else {
+    } catch {
+      // getUser can throw on network errors (e.g. "Failed to fetch")
+      // Silently treat as unauthenticated rather than surfacing raw error
       setUser(null);
       setBalance(null);
     }
@@ -93,7 +99,11 @@ export default function SettingsModal({
         window.location.href = data.url;
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "購入処理に失敗しました";
+      const raw = err instanceof Error ? err.message : "";
+      const msg =
+        raw === "Failed to fetch" || raw.includes("NetworkError")
+          ? "通信エラーが発生しました。ネット接続を確認してもう一度お試しください。"
+          : raw || "購入処理に失敗しました";
       onToast(msg);
     } finally {
       setLoadingPlan(null);

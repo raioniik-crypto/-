@@ -38,18 +38,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(target);
   };
 
-  const errorMessage = (fallback: string) => {
-    return supabaseErrorDesc || fallback;
-  };
+  const friendlyError = (fallback: string) =>
+    buildRedirect(next, {
+      auth_status: "error",
+      auth_message: supabaseErrorDesc || fallback,
+    });
 
   // Supabase itself redirected here with an error (e.g. already-used / expired link)
   if (supabaseError) {
-    return buildRedirect(next, {
-      auth_status: "error",
-      auth_message: errorMessage(
-        "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。"
-      ),
-    });
+    return friendlyError(
+      "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。"
+    );
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -61,8 +60,6 @@ export async function GET(request: NextRequest) {
   }
 
   // Prepare the redirect response first so auth cookies can be attached to it.
-  // (Using Next.js `cookies()` with a later redirect creates a fresh response
-  //  without the Set-Cookie headers, which was the original bug.)
   const successResponse = buildRedirect(next, {
     auth_status: "success",
     auth_message: "メール確認が完了しました。ログインできます。",
@@ -87,40 +84,45 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  // --- Flow 1: PKCE (code) ---
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      console.error("[auth/callback] exchangeCodeForSession failed:", error.message);
-      return buildRedirect(next, {
-        auth_status: "error",
-        auth_message:
-          "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。",
-      });
+  // Entire auth exchange is wrapped in try/catch because exchangeCodeForSession
+  // and verifyOtp can THROW (not just return error) on network failures, which
+  // would otherwise result in an unhandled 500 showing raw "Failed to fetch".
+  try {
+    // --- Flow 1: PKCE (code) ---
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        console.error("[auth/callback] exchangeCodeForSession failed:", error.message);
+        return friendlyError(
+          "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。"
+        );
+      }
+      return successResponse;
     }
-    return successResponse;
-  }
 
-  // --- Flow 2: Email OTP (token_hash + type) ---
-  if (tokenHash && type) {
-    const { error } = await supabase.auth.verifyOtp({
-      type,
-      token_hash: tokenHash,
-    });
-    if (error) {
-      console.error("[auth/callback] verifyOtp failed:", error.message);
-      return buildRedirect(next, {
-        auth_status: "error",
-        auth_message:
-          "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。",
+    // --- Flow 2: Email OTP (token_hash + type) ---
+    if (tokenHash && type) {
+      const { error } = await supabase.auth.verifyOtp({
+        type,
+        token_hash: tokenHash,
       });
+      if (error) {
+        console.error("[auth/callback] verifyOtp failed:", error.message);
+        return friendlyError(
+          "メール確認に失敗しました。リンクの期限切れ、またはすでに使用済みの可能性があります。"
+        );
+      }
+      return successResponse;
     }
-    return successResponse;
+  } catch (err) {
+    console.error("[auth/callback] Unexpected error during auth exchange:", err);
+    return friendlyError(
+      "メール確認の処理中に通信エラーが発生しました。しばらくしてからもう一度お試しください。"
+    );
   }
 
   // Neither code nor token_hash provided — invalid link
-  return buildRedirect(next, {
-    auth_status: "error",
-    auth_message: "確認リンクが無効です。もう一度メールをご確認ください。",
-  });
+  return friendlyError(
+    "確認リンクが無効です。もう一度メールをご確認ください。"
+  );
 }
