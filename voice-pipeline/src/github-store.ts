@@ -62,3 +62,68 @@ export async function getFile(repoPath: string): Promise<string | null> {
   }
   return Buffer.from(data.content, "base64").toString("utf-8");
 }
+
+/** Delete a file. Returns true if deleted, false if not found. */
+export async function deleteFile(
+  repoPath: string,
+  message: string
+): Promise<boolean> {
+  const { token, repo, branch } = getConfig();
+  // Need the file's sha to delete it
+  const metaRes = await fetch(
+    `https://api.github.com/repos/${repo}/contents/${encodeRepoPath(repoPath)}?ref=${encodeURIComponent(branch)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    }
+  );
+  if (metaRes.status === 404) return false;
+  if (!metaRes.ok) {
+    const body = await metaRes.text();
+    throw new Error(`GitHub GET (for delete) ${metaRes.status}: ${body.slice(0, 200)}`);
+  }
+  const meta = (await metaRes.json()) as { sha?: string };
+  if (!meta.sha) throw new Error("GitHub GET: no sha in response");
+
+  const delRes = await fetch(
+    `https://api.github.com/repos/${repo}/contents/${encodeRepoPath(repoPath)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, sha: meta.sha, branch }),
+    }
+  );
+  if (!delRes.ok) {
+    const body = await delRes.text();
+    throw new Error(`GitHub DELETE ${delRes.status}: ${body.slice(0, 200)}`);
+  }
+  return true;
+}
+
+/** List file names in a directory. Returns empty array if dir not found. */
+export async function listDir(repoPath: string): Promise<string[]> {
+  const { token, repo, branch } = getConfig();
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/contents/${encodeRepoPath(repoPath)}?ref=${encodeURIComponent(branch)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    }
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GitHub LIST ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const items = (await res.json()) as Array<{ name: string; type: string }>;
+  if (!Array.isArray(items)) return [];
+  return items.filter((i) => i.type === "file").map((i) => i.name);
+}

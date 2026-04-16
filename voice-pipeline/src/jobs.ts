@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { putFile, getFile } from "./github-store";
+import { putFile, getFile, deleteFile, listDir } from "./github-store";
 import { Job, JobStatus, JobType, CreateJobInput } from "./types";
 
 const VALID_TYPES: JobType[] = ["memo_capture", "content_draft", "dev_brief"];
@@ -101,4 +101,40 @@ export async function findJob(jobId: string): Promise<Job | null> {
     }
   }
   return null;
+}
+
+/** List job IDs in the queued folder. Returns at most `limit` entries. */
+export async function listQueuedJobs(limit = 1): Promise<string[]> {
+  const files = await listDir("system/jobs/queued");
+  return files
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""))
+    .slice(0, limit);
+}
+
+/**
+ * Move a job from one status to another.
+ * Writes the updated JSON to the new path, then deletes the old path.
+ */
+export async function moveJob(
+  job: Job,
+  from: JobStatus,
+  to: JobStatus,
+  updates: Partial<Pick<Job, "result_summary" | "artifact_paths" | "error_message">> = {}
+): Promise<Job> {
+  const updated: Job = {
+    ...job,
+    ...updates,
+    status: to,
+    updated_at: new Date().toISOString(),
+  };
+  const newPath = jobPath(to, job.job_id);
+  await putFile(newPath, JSON.stringify(updated, null, 2), `job: ${from} → ${to} ${job.job_id}`);
+  // Best-effort delete from old location; if it fails the job still exists in the new location
+  try {
+    await deleteFile(jobPath(from, job.job_id), `job: cleanup ${from}/${job.job_id}`);
+  } catch {
+    // not fatal — the new status file is already written
+  }
+  return updated;
 }

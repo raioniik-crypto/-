@@ -5,7 +5,8 @@
   "description": "Voice memo to Obsidian automation pipeline",
   "scripts": {
     "dev": "tsx src/pipeline.ts",
-    "server": "tsx src/server.ts"
+    "server": "tsx src/server.ts",
+    "worker": "tsx src/worker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

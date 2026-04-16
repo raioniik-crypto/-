@@ -6,6 +6,7 @@ import * as os from "os";
 import Busboy from "busboy";
 import { runPipeline, getContentFingerprint } from "./pipeline";
 import { validateCreateInput, createJob, findJob } from "./jobs";
+import { runOnce } from "./worker";
 
 const PORT = parseInt(process.env.PORT || "3456", 10);
 const INGEST_API_KEY = process.env.INGEST_API_KEY || "";
@@ -170,10 +171,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /worker/run-once — execute one queued job
+  if (req.method === "POST" && req.url === "/worker/run-once") {
+    if (!checkAuth(req, res)) return;
+    try {
+      const result = await runOnce();
+      const code = result.result === "error" ? 500 : 200;
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ result: "error", error: msg }));
+    }
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({
     error: "not_found",
-    available: ["GET /health", "POST /ingest", "POST /jobs", "GET /jobs/:id"],
+    available: ["GET /health", "POST /ingest", "POST /jobs", "GET /jobs/:id", "POST /worker/run-once"],
   }));
 });
 
@@ -183,6 +200,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("  POST /ingest    — multipart/form-data with 'file' field");
   console.log("  POST /jobs      — create a new job (JSON body)");
   console.log("  GET  /jobs/:id  — fetch a job by id");
+  console.log("  POST /worker/run-once — process one queued job");
   console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);
   console.log(`  Save: GitHub Contents API → ${process.env.GITHUB_REPO || "(GITHUB_REPO not set)"}`);
 });
