@@ -1,17 +1,25 @@
 import "dotenv/config";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import * as fs from "fs";
 import * as path from "path";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 
 // ============================================================
 // Config
 // ============================================================
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const OBSIDIAN_VAULT_PATH = process.env.OBSIDIAN_VAULT_PATH;
 const NOTIFY_WEBHOOK_URL = process.env.NOTIFY_WEBHOOK_URL;
 const NOTIFY_PROVIDER = process.env.NOTIFY_PROVIDER || "slack";
+const TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || "whisper-1";
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514";
+
+const LOGS_DIR = path.join(__dirname, "..", "logs");
+const PROCESSED_FILE = path.join(LOGS_DIR, "processed.json");
+const RUN_LOGS_FILE = path.join(LOGS_DIR, "run-logs.ndjson");
 
 // ============================================================
 // Types
@@ -19,35 +27,72 @@ const NOTIFY_PROVIDER = process.env.NOTIFY_PROVIDER || "slack";
 
 type ContentType = "task" | "project" | "log" | "daily_note" | "inbox";
 
-interface FormattedResult {
+interface ClaudeResult {
   title: string;
-  summary: string;
-  formattedBody: string;
-  nextActions: string;
   type: ContentType;
+  summary: string;
+  formatted_body: string;
+  next_actions: string[];
+  confidence: number;
+  reason: string;
+}
+
+interface RunLog {
+  process_id: string;
+  input_file: string;
+  started_at: string;
+  finished_at: string;
+  transcription_status: "success" | "failed" | "skipped";
+  orchestration_status: "success" | "failed" | "skipped";
+  save_status: "success" | "failed";
+  notify_status: "success" | "failed" | "skipped";
+  error?: string;
 }
 
 // ============================================================
-// Logging
+// Console logging
 // ============================================================
 
-const LOG_LINES: string[] = [];
-
-function log(processId: string, step: string, message: string): void {
-  const line = `[${new Date().toISOString()}] [${processId}] [${step}] ${message}`;
-  console.log(line);
-  LOG_LINES.push(line);
-}
-
-function writeLogFile(processId: string): void {
-  const logDir = path.join(__dirname, "..", "logs");
-  fs.mkdirSync(logDir, { recursive: true });
-  const logFile = path.join(logDir, `${processId}.log`);
-  fs.writeFileSync(logFile, LOG_LINES.join("\n") + "\n", "utf-8");
+function clog(processId: string, step: string, message: string): void {
+  console.log(
+    `[${new Date().toISOString()}] [${processId}] [${step}] ${message}`
+  );
 }
 
 // ============================================================
-// Step 1: Transcribe
+// NDJSON run log
+// ============================================================
+
+function appendRunLog(entry: RunLog): void {
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+  fs.appendFileSync(RUN_LOGS_FILE, JSON.stringify(entry) + "\n", "utf-8");
+}
+
+// ============================================================
+// Fingerprint & dedup
+// ============================================================
+
+function getFingerprint(audioPath: string): string {
+  const abs = path.resolve(audioPath);
+  const stat = fs.statSync(abs);
+  const raw = `${abs}|${stat.size}|${stat.mtimeMs}`;
+  return createHash("sha256").update(raw).digest("hex").slice(0, 16);
+}
+
+function loadProcessed(): Record<string, { process_id: string; processed_at: string }> {
+  if (!fs.existsSync(PROCESSED_FILE)) return {};
+  return JSON.parse(fs.readFileSync(PROCESSED_FILE, "utf-8"));
+}
+
+function markProcessed(fingerprint: string, processId: string): void {
+  const data = loadProcessed();
+  data[fingerprint] = { process_id: processId, processed_at: new Date().toISOString() };
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+  fs.writeFileSync(PROCESSED_FILE, JSON.stringify(data, null, 2), "utf-8");
+}
+
+// ============================================================
+// Step 1: Transcribe (OpenAI Whisper)
 // ============================================================
 
 async function transcribe(
@@ -56,7 +101,7 @@ async function transcribe(
 ): Promise<string> {
   const file = fs.createReadStream(audioPath);
   const response = await openai.audio.transcriptions.create({
-    model: "whisper-1",
+    model: TRANSCRIBE_MODEL,
     file,
     language: "ja",
   });
@@ -64,72 +109,68 @@ async function transcribe(
 }
 
 // ============================================================
-// Step 2+3: Format and Classify
+// Step 2: Claude orchestration
 // ============================================================
 
-const FORMAT_SYSTEM_PROMPT = `あなたは音声メモの整形アシスタントです。以下の生文字起こしテキストを処理してください。
+const CLAUDE_SYSTEM_PROMPT = `あなたは音声メモの統括整形アシスタントです。生の文字起こしテキストを受け取り、以下を行ってください。
 
-やること：
+処理内容：
 1. 口語ノイズ（えー、あのー、まあ等）を除去
-2. 言い直し・繰り返しを整理
-3. 文を適切に区切る
-4. 要点を抽出（2-3文）
-5. 仮タイトルを生成（短く具体的に）
-6. 次アクションを抽出（なければ「なし」）
-7. 種別を推定
+2. 言い直し・繰り返しを整理し、意味を明確にする
+3. 文を適切に区切り、読みやすく構造化する
+4. 仮タイトルを生成（短く具体的に）
+5. 要点を2-3文で抽出
+6. 次アクションを抽出（なければ空配列）
+7. 種別を以下の優先順で分類：
+   1. 明確な作業指示・TODOがある → "task"
+   2. 継続案件・企画の話が中心 → "project"
+   3. 実施記録・振り返り → "log"
+   4. 当日雑記・日報的内容 → "daily_note"
+   5. 迷うもの → "inbox"
+8. 分類の確信度を0.0〜1.0で示す
+9. 分類理由を1文で述べる
 
-種別の判定基準（優先順）：
-1. 明確な作業指示・TODOがある → "task"
-2. 継続案件・企画の話が中心 → "project"
-3. 実施記録・振り返り → "log"
-4. 当日雑記・日報的内容 → "daily_note"
-5. 迷うもの → "inbox"
-
-必ず以下のJSON形式のみで返してください：
+必ず以下のJSON形式のみで返してください。JSON以外の文字は含めないでください：
 {
   "title": "仮タイトル",
+  "type": "task|project|log|daily_note|inbox",
   "summary": "要点を2-3文で",
-  "formattedBody": "整形された本文",
-  "nextActions": "- アクション1\\n- アクション2",
-  "type": "task|project|log|daily_note|inbox"
+  "formatted_body": "整形された本文",
+  "next_actions": ["アクション1", "アクション2"],
+  "confidence": 0.85,
+  "reason": "分類理由を1文で"
 }`;
 
-async function formatAndClassify(
-  openai: OpenAI,
+async function orchestrate(
+  anthropic: Anthropic,
   transcript: string
-): Promise<FormattedResult> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: FORMAT_SYSTEM_PROMPT },
-      { role: "user", content: transcript },
-    ],
-    temperature: 0.3,
-    response_format: { type: "json_object" },
+): Promise<ClaudeResult> {
+  const response = await anthropic.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 4096,
+    system: CLAUDE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: transcript }],
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("OpenAI returned empty response during formatting");
+  const block = response.content[0];
+  if (block.type !== "text") {
+    throw new Error("Claude returned non-text response");
   }
 
-  const parsed = JSON.parse(content);
-  const validTypes: ContentType[] = [
-    "task",
-    "project",
-    "log",
-    "daily_note",
-    "inbox",
-  ];
+  const parsed = JSON.parse(block.text);
+  const validTypes: ContentType[] = ["task", "project", "log", "daily_note", "inbox"];
   if (!validTypes.includes(parsed.type)) {
     parsed.type = "inbox";
   }
+  if (!Array.isArray(parsed.next_actions)) {
+    parsed.next_actions = [];
+  }
 
-  return parsed as FormattedResult;
+  return parsed as ClaudeResult;
 }
 
 // ============================================================
-// Step 4: Save to Obsidian
+// Step 3: Save to Obsidian
 // ============================================================
 
 const FOLDER_MAP: Record<string, string> = {
@@ -140,16 +181,20 @@ const FOLDER_MAP: Record<string, string> = {
   inbox: "Inbox",
 };
 
-function saveToObsidian(data: {
+interface SaveData {
   processId: string;
   audioFilename: string;
   rawTranscript: string;
+  status: "captured" | "transcript_only";
   title: string;
+  type: string;
   summary: string;
   formattedBody: string;
   nextActions: string;
-  type: string;
-}): string {
+  reason: string;
+}
+
+function saveToObsidian(data: SaveData): string {
   const now = new Date();
   const isoDate = now.toISOString();
   const dateStr = isoDate.slice(0, 10);
@@ -172,7 +217,9 @@ type: "${data.type}"
 source: "voice"
 audio_file: "${data.audioFilename}"
 process_id: "${data.processId}"
-status: "captured"
+status: "${data.status}"
+model_used_transcription: "${TRANSCRIBE_MODEL}"
+model_used_orchestration: "${data.status === "captured" ? CLAUDE_MODEL : "none"}"
 ---
 
 # ${data.title}
@@ -188,6 +235,9 @@ ${data.nextActions}
 
 ## 生文字起こし
 ${data.rawTranscript}
+
+## 分類理由
+${data.reason}
 `;
 
   fs.writeFileSync(filePath, markdown, "utf-8");
@@ -195,30 +245,41 @@ ${data.rawTranscript}
 }
 
 // ============================================================
-// Step 5: Notify
+// Step 4: Notify
 // ============================================================
 
-async function notify(
+async function notifySuccess(
+  processId: string,
   title: string,
   type: string,
   savedPath: string
 ): Promise<boolean> {
+  return sendWebhook(
+    `音声メモ保存完了\n${fmt("タイトル", title)}\n種別: ${type}\n保存先: ${path.basename(savedPath)}\nID: ${processId}`
+  );
+}
+
+async function notifyFailure(
+  processId: string,
+  failedStep: string,
+  errorMsg: string
+): Promise<boolean> {
+  return sendWebhook(
+    `音声メモ処理失敗\n失敗段階: ${failedStep}\nエラー: ${errorMsg}\nID: ${processId}`
+  );
+}
+
+function fmt(label: string, value: string): string {
+  if (NOTIFY_PROVIDER === "discord") return `**${label}:** ${value}`;
+  return `*${label}:* ${value}`;
+}
+
+async function sendWebhook(message: string): Promise<boolean> {
   if (!NOTIFY_WEBHOOK_URL) return false;
-
-  const filename = path.basename(savedPath);
-  let body: Record<string, unknown>;
-
-  if (NOTIFY_PROVIDER === "discord") {
-    body = {
-      content: `音声メモ保存完了\n**${title}**\n種別: ${type}\n保存先: ${filename}`,
-    };
-  } else {
-    // Slack format (default)
-    body = {
-      text: `音声メモ保存完了\n*${title}*\n種別: ${type}\n保存先: ${filename}`,
-    };
-  }
-
+  const body =
+    NOTIFY_PROVIDER === "discord"
+      ? { content: message }
+      : { text: message };
   try {
     const res = await fetch(NOTIFY_WEBHOOK_URL, {
       method: "POST",
@@ -239,13 +300,16 @@ async function main(): Promise<void> {
   const audioPath = process.argv[2];
 
   if (!audioPath) {
-    console.error("Usage: npm run process -- <audio-file-path>");
-    console.error("       npx tsx src/pipeline.ts <audio-file-path>");
+    console.error('Usage: npm run dev -- "<audio-file-path>"');
+    console.error('       npx tsx src/pipeline.ts "<audio-file-path>"');
     process.exit(1);
   }
-
   if (!OPENAI_API_KEY) {
     console.error("Error: OPENAI_API_KEY is not set");
+    process.exit(1);
+  }
+  if (!ANTHROPIC_API_KEY) {
+    console.error("Error: ANTHROPIC_API_KEY is not set");
     process.exit(1);
   }
   if (!OBSIDIAN_VAULT_PATH) {
@@ -259,51 +323,139 @@ async function main(): Promise<void> {
 
   const processId = randomUUID().slice(0, 8);
   const audioFilename = path.basename(audioPath);
+  const startedAt = new Date().toISOString();
 
-  log(processId, "START", `Processing ${audioFilename}`);
+  const runLog: RunLog = {
+    process_id: processId,
+    input_file: audioFilename,
+    started_at: startedAt,
+    finished_at: "",
+    transcription_status: "skipped",
+    orchestration_status: "skipped",
+    save_status: "failed",
+    notify_status: "skipped",
+  };
 
-  try {
-    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  clog(processId, "START", `Processing ${audioFilename}`);
 
-    // Step 1: Transcribe
-    log(processId, "TRANSCRIBE", "Starting...");
-    const rawTranscript = await transcribe(openai, audioPath);
-    log(processId, "TRANSCRIBE", `Done (${rawTranscript.length} chars)`);
-
-    // Step 2+3: Format and classify
-    log(processId, "FORMAT", "Starting...");
-    const formatted = await formatAndClassify(openai, rawTranscript);
-    log(processId, "FORMAT", `Done — type=${formatted.type}, title="${formatted.title}"`);
-
-    // Step 4: Save to Obsidian
-    log(processId, "SAVE", "Saving...");
-    const savedPath = saveToObsidian({
+  // Dedup check
+  const fingerprint = getFingerprint(audioPath);
+  const processed = loadProcessed();
+  if (processed[fingerprint]) {
+    clog(
       processId,
-      audioFilename,
-      rawTranscript,
-      ...formatted,
-    });
-    log(processId, "SAVE", `Saved to ${savedPath}`);
+      "SKIP",
+      `Already processed (prev ID: ${processed[fingerprint].process_id})`
+    );
+    console.log("Duplicate file — skipping.");
+    process.exit(0);
+  }
 
-    // Step 5: Notify
-    if (NOTIFY_WEBHOOK_URL) {
-      log(processId, "NOTIFY", "Sending...");
-      const ok = await notify(formatted.title, formatted.type, savedPath);
-      log(processId, "NOTIFY", ok ? "Sent" : "Failed (non-fatal)");
-    } else {
-      log(processId, "NOTIFY", "Skipped (NOTIFY_WEBHOOK_URL not set)");
-    }
+  const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-    log(processId, "DONE", "Pipeline complete");
+  // Step 1: Transcribe
+  let rawTranscript: string;
+  try {
+    clog(processId, "TRANSCRIBE", "Starting...");
+    rawTranscript = await transcribe(openai, audioPath);
+    runLog.transcription_status = "success";
+    clog(processId, "TRANSCRIBE", `Done (${rawTranscript.length} chars)`);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    log(processId, "ERROR", message);
-    writeLogFile(processId);
-    console.error(`\nPipeline failed at process ${processId}. See logs/`);
+    const msg = err instanceof Error ? err.message : String(err);
+    runLog.transcription_status = "failed";
+    runLog.error = `TRANSCRIBE: ${msg}`;
+    runLog.finished_at = new Date().toISOString();
+    appendRunLog(runLog);
+    clog(processId, "ERROR", `Transcription failed: ${msg}`);
+    if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "TRANSCRIBE", msg);
     process.exit(1);
   }
 
-  writeLogFile(processId);
+  // Step 2: Claude orchestration
+  let claude: ClaudeResult | null = null;
+  try {
+    clog(processId, "ORCHESTRATE", "Starting...");
+    claude = await orchestrate(anthropic, rawTranscript);
+    runLog.orchestration_status = "success";
+    clog(
+      processId,
+      "ORCHESTRATE",
+      `Done — type=${claude.type}, title="${claude.title}", confidence=${claude.confidence}`
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    runLog.orchestration_status = "failed";
+    clog(processId, "ORCHESTRATE", `Failed: ${msg} — falling back to rescue save`);
+  }
+
+  // Step 3: Save to Obsidian
+  let savedPath: string;
+  try {
+    clog(processId, "SAVE", "Saving...");
+    if (claude) {
+      const nextActionsStr = claude.next_actions.length > 0
+        ? claude.next_actions.map((a) => `- ${a}`).join("\n")
+        : "なし";
+      savedPath = saveToObsidian({
+        processId,
+        audioFilename,
+        rawTranscript,
+        status: "captured",
+        title: claude.title,
+        type: claude.type,
+        summary: claude.summary,
+        formattedBody: claude.formatted_body,
+        nextActions: nextActionsStr,
+        reason: claude.reason,
+      });
+    } else {
+      // Rescue: save raw transcript only
+      savedPath = saveToObsidian({
+        processId,
+        audioFilename,
+        rawTranscript,
+        status: "transcript_only",
+        title: `音声メモ_${audioFilename}`,
+        type: "inbox",
+        summary: "(Claude整形失敗 — 生文字起こしのみ)",
+        formattedBody: rawTranscript,
+        nextActions: "なし",
+        reason: "Claude整形に失敗したため自動的にInboxへ保存",
+      });
+    }
+    runLog.save_status = "success";
+    clog(processId, "SAVE", `Saved to ${savedPath}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    runLog.save_status = "failed";
+    runLog.error = (runLog.error ? runLog.error + " | " : "") + `SAVE: ${msg}`;
+    runLog.finished_at = new Date().toISOString();
+    appendRunLog(runLog);
+    clog(processId, "ERROR", `Save failed: ${msg}`);
+    if (NOTIFY_WEBHOOK_URL) await notifyFailure(processId, "SAVE", msg);
+    process.exit(1);
+  }
+
+  // Step 4: Notify
+  if (NOTIFY_WEBHOOK_URL) {
+    clog(processId, "NOTIFY", "Sending...");
+    const title = claude ? claude.title : `音声メモ_${audioFilename}`;
+    const type = claude ? claude.type : "inbox";
+    const ok = await notifySuccess(processId, title, type, savedPath);
+    runLog.notify_status = ok ? "success" : "failed";
+    clog(processId, "NOTIFY", ok ? "Sent" : "Failed (non-fatal)");
+  }
+
+  // Mark as processed
+  markProcessed(fingerprint, processId);
+
+  runLog.finished_at = new Date().toISOString();
+  if (!runLog.error && runLog.orchestration_status === "failed") {
+    runLog.error = "Orchestration failed — rescue save used";
+  }
+  appendRunLog(runLog);
+  clog(processId, "DONE", "Pipeline complete");
 }
 
 main();
