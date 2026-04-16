@@ -92,15 +92,30 @@ export async function createJob(
   return { job, saved_path: savedPath };
 }
 
-/** Search status folders in order; return first match or null. */
+/**
+ * Search all status folders for a job. If the same job_id exists in
+ * multiple folders (e.g. DELETE failed during moveJob), return the
+ * one with the newest updated_at. On tie, prefer later status.
+ */
 export async function findJob(jobId: string): Promise<Job | null> {
-  for (const status of SEARCH_STATUSES) {
-    const content = await getFile(jobPath(status, jobId));
-    if (content !== null) {
-      return JSON.parse(content) as Job;
+  let best: Job | null = null;
+  let bestIdx = -1;
+  for (let i = 0; i < SEARCH_STATUSES.length; i++) {
+    const content = await getFile(jobPath(SEARCH_STATUSES[i], jobId));
+    if (content === null) continue;
+    const job = JSON.parse(content) as Job;
+    if (!best) {
+      best = job;
+      bestIdx = i;
+      continue;
+    }
+    // Prefer newer updated_at; on tie prefer later status index
+    if (job.updated_at > best.updated_at || (job.updated_at === best.updated_at && i > bestIdx)) {
+      best = job;
+      bestIdx = i;
     }
   }
-  return null;
+  return best;
 }
 
 /** List job IDs in the queued folder. Returns at most `limit` entries. */
