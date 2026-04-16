@@ -4,9 +4,27 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import Busboy from "busboy";
-import { runPipeline } from "./pipeline";
+import { runPipeline, getContentFingerprint } from "./pipeline";
 
 const PORT = parseInt(process.env.PORT || "3456", 10);
+const INGEST_API_KEY = process.env.INGEST_API_KEY || "";
+
+// ============================================================
+// Auth
+// ============================================================
+
+function checkAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  if (!INGEST_API_KEY) return true; // no key configured = open
+  const header = req.headers.authorization || "";
+  if (header === `Bearer ${INGEST_API_KEY}`) return true;
+  res.writeHead(401, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error: "Unauthorized" }));
+  return false;
+}
+
+// ============================================================
+// File upload
+// ============================================================
 
 function receiveFile(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -31,12 +49,27 @@ function receiveFile(req: http.IncomingMessage): Promise<string> {
   });
 }
 
+// ============================================================
+// Routes
+// ============================================================
+
 const server = http.createServer(async (req, res) => {
+  // GET /health — no auth required
+  if (req.method === "GET" && req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", save_target: "github_contents_api" }));
+    return;
+  }
+
+  // POST /ingest — auth required
   if (req.method === "POST" && req.url === "/ingest") {
+    if (!checkAuth(req, res)) return;
+
     let tempPath: string | null = null;
     try {
       tempPath = await receiveFile(req);
-      const result = await runPipeline(tempPath);
+      const contentFingerprint = getContentFingerprint(tempPath);
+      const result = await runPipeline(tempPath, { contentFingerprint });
       const status = result.result === "failed" ? 500 : 200;
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result));
@@ -51,10 +84,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "POST /ingest only" }));
+  res.end(JSON.stringify({ error: "POST /ingest or GET /health" }));
 });
 
-server.listen(PORT, () => {
-  console.log(`Voice pipeline server on http://localhost:${PORT}`);
-  console.log("POST /ingest — multipart/form-data with 'file' field");
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Voice pipeline server on http://0.0.0.0:${PORT}`);
+  console.log("  GET  /health — health check");
+  console.log("  POST /ingest — multipart/form-data with 'file' field");
+  console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);
+  console.log(`  Save: GitHub Contents API → ${process.env.GITHUB_REPO || "(GITHUB_REPO not set)"}`);
 });

@@ -331,7 +331,12 @@ async function sendWebhook(message: string): Promise<boolean> {
 // Core pipeline (exported for server.ts)
 // ============================================================
 
-export async function runPipeline(audioPath: string): Promise<PipelineResult> {
+export function getContentFingerprint(filePath: string): string {
+  const buf = fs.readFileSync(filePath);
+  return createHash("sha256").update(buf).digest("hex").slice(0, 16);
+}
+
+export async function runPipeline(audioPath: string, opts?: { contentFingerprint?: string }): Promise<PipelineResult> {
   const processId = randomUUID().slice(0, 8);
   const audioFilename = path.basename(audioPath);
   const startedAt = new Date().toISOString();
@@ -356,8 +361,8 @@ export async function runPipeline(audioPath: string): Promise<PipelineResult> {
 
   clog(processId, "START", `Processing ${audioFilename}`);
 
-  // Dedup check
-  const fingerprint = getFingerprint(audioPath);
+  // Dedup check — use content hash if provided (HTTP uploads), else path-based (CLI)
+  const fingerprint = opts?.contentFingerprint || getFingerprint(audioPath);
   const processed = loadProcessed();
   if (processed[fingerprint]) {
     clog(processId, "SKIP", `Already processed (prev ID: ${processed[fingerprint].process_id})`);
