@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Info,
   RefreshCw,
+  ClipboardList,
 } from "lucide-react";
 import {
   GenerateResult,
@@ -107,6 +108,52 @@ function ActionBar({
       )}
     </div>
   );
+}
+
+// --- Bundle text builder ---
+function buildBundleText(result: GenerateResult): string {
+  const sections: string[] = [];
+
+  // X posts
+  if (result.xPosts.length > 0) {
+    const posts = result.xPosts.map((p) => {
+      const tags = p.hashtags.map((h) => `#${h}`).join(" ");
+      return `【${p.label}】\n${p.body}\n${tags}`;
+    });
+    sections.push(`■ X投稿本文\n\n${posts.join("\n\n---\n\n")}`);
+  }
+
+  // Carousel
+  if (result.carousel.length > 0) {
+    const slides = result.carousel.map(
+      (s) => `[スライド${s.slideNumber}] ${s.title}\n${s.subtitle}\n${s.body}`
+    );
+    sections.push(`■ カルーセル文言\n\n${slides.join("\n\n")}`);
+  }
+
+  // Image prompts
+  if (result.imagePrompts.length > 0) {
+    const prompts = result.imagePrompts.map(
+      (p) =>
+        `【${p.label}】(${p.aspectRatio})\nMain: ${p.mainPrompt}\n日本語: ${p.mainPromptJa}\nStyle: ${p.subPrompt}\nNegative: ${p.negativePrompt}`
+    );
+    sections.push(`■ 画像プロンプト\n\n${prompts.join("\n\n---\n\n")}`);
+  }
+
+  // Canva texts
+  const canva = result.canvaTexts;
+  const canvaSections: string[] = [];
+  if (canva.coverTitles.length) canvaSections.push(`カバータイトル: ${canva.coverTitles.join(" / ")}`);
+  if (canva.subTitles.length) canvaSections.push(`サブタイトル: ${canva.subTitles.join(" / ")}`);
+  if (canva.highlightWords.length) canvaSections.push(`強調ワード: ${canva.highlightWords.join(" / ")}`);
+  if (canva.descriptions.length) canvaSections.push(`説明文: ${canva.descriptions.join(" / ")}`);
+  if (canva.ctaTexts.length) canvaSections.push(`CTA: ${canva.ctaTexts.join(" / ")}`);
+  if (canva.badgeShortTexts.length) canvaSections.push(`バッジ: ${canva.badgeShortTexts.join(" / ")}`);
+  if (canvaSections.length) {
+    sections.push(`■ Canva用文字素材\n\n${canvaSections.join("\n")}`);
+  }
+
+  return sections.join("\n\n━━━━━━━━━━━━━━━━━━━━\n\n");
 }
 
 // --- Example starters for empty-state chips ---
@@ -614,15 +661,24 @@ export default function OutputPanel({ result, loading, error, onRetry, onCopy, o
             <p className="text-[10px] font-bold text-slate-500 mr-auto">
               コピー・微調整・別案作成ができます
             </p>
+            <motion.button
+              whileTap={{ scale: 0.93 }}
+              onClick={() => onCopy(buildBundleText(result), "生成結果まとめ")}
+              className="flex items-center gap-1 px-3 py-1.5 bg-cyan-400 text-black font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+            >
+              <ClipboardList size={12} />
+              まとめてコピー
+            </motion.button>
             {onRegenerate && (
-              <button
+              <motion.button
+                whileTap={{ scale: 0.93 }}
                 onClick={onRegenerate}
                 disabled={loading || adjusting}
                 className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all disabled:opacity-40"
               >
                 <RefreshCw size={12} />
                 別案を作る
-              </button>
+              </motion.button>
             )}
           </div>
         )}

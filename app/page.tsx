@@ -416,11 +416,13 @@ export default function Home() {
   const handleCopy = useCallback(
     (text: string, label?: string) => {
       navigator.clipboard.writeText(text);
-      setMascotMessage(MASCOT_MESSAGES.copy);
+      const isBulk = label === "生成結果まとめ";
+      setMascotMessage(isBulk ? MASCOT_MESSAGES.bulkCopy : MASCOT_MESSAGES.copy);
       showToast(label ? `${label}をコピーしました` : "コピーしました！");
+      const currentMsg = isBulk ? MASCOT_MESSAGES.bulkCopy : MASCOT_MESSAGES.copy;
       setTimeout(() => {
         setMascotMessage((prev) =>
-          prev === MASCOT_MESSAGES.copy
+          prev === currentMsg
             ? status === "output"
               ? MASCOT_MESSAGES.success
               : MASCOT_MESSAGES.idle
