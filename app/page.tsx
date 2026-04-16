@@ -267,6 +267,7 @@ export default function Home() {
   const [adjusting, setAdjusting] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [urgentPurchase, setUrgentPurchase] = useState(false);
   const [creditRefreshSignal, setCreditRefreshSignal] = useState(0);
 
   const showToast = useCallback(
@@ -382,6 +383,7 @@ export default function Home() {
       if (!res.ok) {
         // クレジット不足・未ログインは設定モーダルで対応できるよう自動で開く
         if (data?.insufficientCredits || data?.requireAuth) {
+          setUrgentPurchase(!!data.insufficientCredits);
           setShowSettingsModal(true);
         }
         throw new Error(data.error || "生成に失敗しました。");
@@ -488,7 +490,10 @@ export default function Home() {
     <div className="min-h-screen font-sans text-slate-900 pb-32 bg-slate-50">
       <Header
         onOpenTemplates={() => setShowTemplateModal(true)}
-        onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenSettings={() => {
+          setUrgentPurchase(false);
+          setShowSettingsModal(true);
+        }}
       />
 
       <main className="max-w-7xl mx-auto px-4 pt-4">
@@ -544,12 +549,16 @@ export default function Home() {
 
       <SettingsModal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => {
+          setShowSettingsModal(false);
+          setUrgentPurchase(false);
+        }}
         onToast={showToast}
         onAuthChange={() => {
           setCreditRefreshSignal((n) => n + 1);
         }}
         refreshSignal={creditRefreshSignal}
+        urgentPurchase={urgentPurchase}
       />
 
       <footer className="fixed bottom-0 left-0 w-full bg-white border-t-4 border-black py-4 px-6 z-40 shadow-[0_-4px_0_0_rgba(0,0,0,1)]">
