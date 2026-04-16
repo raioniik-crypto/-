@@ -18,6 +18,8 @@ import {
   OutputTab,
   OUTPUT_TAB_LABELS,
   AdjustTarget,
+  FormInput,
+  INITIAL_FORM,
 } from "@/app/types";
 import { dedupeWithBody } from "@/lib/hashtag";
 import { buildXPostUrl, EXTERNAL_URLS, ADJUST_CHIPS } from "@/lib/constants";
@@ -30,6 +32,7 @@ interface OutputPanelProps {
   onCopy: (text: string, label?: string) => void;
   onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>;
   adjusting: boolean;
+  onExampleFill?: (data: FormInput) => void;
 }
 
 const TABS: { id: OutputTab; label: string; icon: typeof MousePointer2; color: string }[] = [
@@ -103,9 +106,58 @@ function ActionBar({
   );
 }
 
+// --- Example starters for empty-state chips ---
+const EXAMPLE_STARTERS: { label: string; data: Partial<FormInput> }[] = [
+  {
+    label: "商品・サービス紹介",
+    data: {
+      productName: "オンライン英会話「トークバディ」",
+      overview: "AIと毎日25分の英会話練習ができるサブスク型サービス",
+      target: "英語を話せるようになりたい社会人、転職を考えている20〜30代",
+      targetPain: "英会話教室は高い・通うのが面倒、独学だと会話の練習ができない",
+      benefit: "スマホ1つで通勤中でも実践練習OK。AI相手なので恥ずかしくない",
+      cta: "プロフィールのリンクから無料体験",
+    },
+  },
+  {
+    label: "イベント告知",
+    data: {
+      productName: "個人事業主のためのSNS勉強会 vol.3",
+      overview: "SNS運用のコツを実例付きで学べるオンライン勉強会。参加費無料",
+      target: "SNS集客を始めたい個人事業主、フリーランス",
+      announcement: "5/20（土）20:00〜 Zoomで開催。先着30名",
+      cta: "プロフィール欄のフォームから申し込み",
+      tone: "カジュアルで親しみやすい",
+    },
+  },
+  {
+    label: "キャンペーン案内",
+    data: {
+      productName: "春の新規登録キャンペーン",
+      overview: "フォロー＆リポストで抽選10名にAmazonギフト券3,000円分プレゼント",
+      target: "懸賞好き、お得情報を探している人",
+      announcement: "4/1〜4/30限定！フォロー＆RTだけで応募完了",
+      cta: "この投稿をリポスト＆アカウントをフォロー",
+      tone: "テンション高め、お祭り感",
+    },
+  },
+  {
+    label: "ノウハウ共有",
+    data: {
+      productName: "初心者でもできるSEO対策5つ",
+      overview: "ブログのアクセスを増やすために今すぐできるSEOの基本を5つ紹介",
+      target: "ブログを始めたばかりの人、PVが伸び悩んでいる人",
+      benefit: "この5つを実践するだけで検索流入の基盤が整う。保存して何度でも見返せる",
+      cta: "保存して後で見返してね！詳しくはプロフのリンクへ",
+      tone: "先生っぽいが堅すぎない、図解向け",
+      carouselSlides: 7,
+    },
+  },
+];
+
 // --- Empty / Loading / Error states ---
 
-function EmptyState() {
+function EmptyState({ onExampleFill }: { onExampleFill?: (data: FormInput) => void }) {
   return (
     <motion.div
       key="empty"
@@ -123,17 +175,24 @@ function EmptyState() {
         左の入力欄に情報を入れると、投稿本文・カルーセル・画像プロンプト・Canva素材をまとめて生成します
       </p>
 
-      {/* Example use cases */}
+      {/* Clickable example use cases */}
       <div className="w-full max-w-sm space-y-2 mb-5">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">こんな用途に使えます</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+          クリックで入力欄にサンプルが入ります
+        </p>
         <div className="flex flex-wrap gap-2 justify-center">
-          {["商品・サービス紹介", "イベント告知", "キャンペーン案内", "ノウハウ共有"].map((label) => (
-            <span
-              key={label}
-              className="px-3 py-1.5 bg-white border-2 border-black rounded-lg text-[11px] font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+          {EXAMPLE_STARTERS.map((ex) => (
+            <button
+              key={ex.label}
+              onClick={() => {
+                if (onExampleFill) {
+                  onExampleFill({ ...INITIAL_FORM, ...ex.data } as FormInput);
+                }
+              }}
+              className="px-3 py-1.5 bg-white border-2 border-black rounded-lg text-[11px] font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none hover:bg-yellow-100 transition-all cursor-pointer"
             >
-              {label}
-            </span>
+              {ex.label}
+            </button>
           ))}
         </div>
       </div>
@@ -142,7 +201,7 @@ function EmptyState() {
       <div className="w-full max-w-sm p-4 bg-cyan-50 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         <p className="text-xs font-black text-cyan-700 mb-1">最初の一歩</p>
         <p className="text-[11px] font-bold text-slate-600">
-          商品名と伝えたい内容を入力して「まとめて生成」を押すだけ。箇条書きやメモでもOKです。
+          上の例をクリックするか、商品名と伝えたい内容を入力して「まとめて生成」を押すだけ。
         </p>
       </div>
     </motion.div>
@@ -514,7 +573,7 @@ function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: Gener
 
 // --- Main Panel ---
 
-export default function OutputPanel({ result, loading, error, onRetry, onCopy, onAdjust, adjusting }: OutputPanelProps) {
+export default function OutputPanel({ result, loading, error, onRetry, onCopy, onAdjust, adjusting, onExampleFill }: OutputPanelProps) {
   const [activeTab, setActiveTab] = useState<OutputTab>("xPosts");
 
   return (
@@ -561,7 +620,7 @@ export default function OutputPanel({ result, loading, error, onRetry, onCopy, o
           ) : loading ? (
             <LoadingState />
           ) : !result ? (
-            <EmptyState />
+            <EmptyState onExampleFill={onExampleFill} />
           ) : (
             <motion.div
               key={`content-${activeTab}`}

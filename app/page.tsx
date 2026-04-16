@@ -523,6 +523,11 @@ export default function Home() {
               onCopy={handleCopy}
               onAdjust={handleAdjust}
               adjusting={adjusting}
+              onExampleFill={(data) => {
+                setForm(data);
+                showToast("入力欄にサンプルを入れました。自由に編集できます", "info");
+                setMascotMessage("サンプルを入れたよ！中身を調整して生成してね！");
+              }}
             />
           </div>
         </div>
