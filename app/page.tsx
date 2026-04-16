@@ -414,10 +414,10 @@ export default function Home() {
   };
 
   const handleCopy = useCallback(
-    (text: string) => {
+    (text: string, label?: string) => {
       navigator.clipboard.writeText(text);
       setMascotMessage(MASCOT_MESSAGES.copy);
-      showToast("コピーしました！");
+      showToast(label ? `${label}をコピーしました` : "コピーしました！");
       setTimeout(() => {
         setMascotMessage((prev) =>
           prev === MASCOT_MESSAGES.copy

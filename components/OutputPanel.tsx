@@ -11,6 +11,7 @@ import {
   Sparkles,
   AlertCircle,
   ExternalLink,
+  Info,
 } from "lucide-react";
 import {
   GenerateResult,
@@ -26,7 +27,7 @@ interface OutputPanelProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onCopy: (text: string) => void;
+  onCopy: (text: string, label?: string) => void;
   onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>;
   adjusting: boolean;
 }
@@ -204,7 +205,7 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
 
 // --- Tab Views ---
 
-function XPostsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
+function XPostsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string, label?: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   return (
     <div className="space-y-4">
       {result.xPosts.map((post, i) => {
@@ -235,11 +236,11 @@ function XPostsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateR
                   Xで投稿
                 </a>
                 <button
-                  onClick={() => onCopy(fullText)}
+                  onClick={() => onCopy(fullText, "投稿本文")}
                   className="flex items-center gap-1 px-3 py-1.5 bg-pink-500 text-white rounded-xl font-black text-xs border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
                 >
                   <Copy size={14} />
-                  コピー
+                  本文をコピー
                 </button>
               </div>
             </div>
@@ -259,7 +260,7 @@ function XPostsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateR
   );
 }
 
-function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string) => void }) {
+function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: string, label?: string) => void }) {
   const allText = result.carousel.map((s) => `${s.title}\n${s.subtitle}\n${s.body}`).join("\n\n---\n\n");
 
   return (
@@ -268,7 +269,7 @@ function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: 
         links={[
           { label: "Canvaを開く", url: EXTERNAL_URLS.canvaHome, color: "bg-indigo-500" },
         ]}
-        onCopy={() => onCopy(allText)}
+        onCopy={() => onCopy(allText, "カルーセル全文")}
         copyText={allText}
       />
       <div className="grid grid-cols-1 gap-4">
@@ -285,7 +286,7 @@ function CarouselView({ result, onCopy }: { result: GenerateResult; onCopy: (t: 
                 スライド {slide.slideNumber}
               </span>
               <button
-                onClick={() => onCopy(`${slide.title}\n${slide.subtitle}\n${slide.body}`)}
+                onClick={() => onCopy(`${slide.title}\n${slide.subtitle}\n${slide.body}`, `スライド${slide.slideNumber}`)}
                 className="p-2 bg-white border-2 border-black rounded-lg hover:bg-slate-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
               >
                 <Copy size={14} />
@@ -306,18 +307,18 @@ function ImagePromptCopyBar({
   onCopy,
 }: {
   prompt: { mainPrompt: string; mainPromptJa: string; subPrompt: string; negativePrompt: string; aspectRatio: string };
-  onCopy: (t: string) => void;
+  onCopy: (t: string, label?: string) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2 mt-3">
       <button
-        onClick={() => onCopy(prompt.mainPrompt)}
+        onClick={() => onCopy(prompt.mainPrompt, "英語プロンプト")}
         className="px-3 py-1.5 bg-yellow-400 text-black font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
       >
         <Copy size={10} className="inline mr-1" />英語のみ
       </button>
       <button
-        onClick={() => onCopy(prompt.mainPromptJa)}
+        onClick={() => onCopy(prompt.mainPromptJa, "日本語訳")}
         className="px-3 py-1.5 bg-cyan-400 text-black font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
       >
         <Copy size={10} className="inline mr-1" />日本語訳のみ
@@ -325,7 +326,8 @@ function ImagePromptCopyBar({
       <button
         onClick={() =>
           onCopy(
-            `Main: ${prompt.mainPrompt}\n日本語: ${prompt.mainPromptJa}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}\nAspect: ${prompt.aspectRatio}`
+            `Main: ${prompt.mainPrompt}\n日本語: ${prompt.mainPromptJa}\nStyle: ${prompt.subPrompt}\nNegative: ${prompt.negativePrompt}\nAspect: ${prompt.aspectRatio}`,
+            "画像プロンプト全文"
           )
         }
         className="px-3 py-1.5 bg-slate-700 text-white font-black text-[10px] border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
@@ -336,7 +338,7 @@ function ImagePromptCopyBar({
   );
 }
 
-function ImagePromptsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
+function ImagePromptsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string, label?: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   return (
     <div className="space-y-6">
       <ActionBar
@@ -350,7 +352,7 @@ function ImagePromptsView({ result, onCopy, onAdjust, adjusting }: { result: Gen
                 `[${p.label}]\nMain: ${p.mainPrompt}\n日本語: ${p.mainPromptJa}\nStyle: ${p.subPrompt}\nNegative: ${p.negativePrompt}\nAspect: ${p.aspectRatio}`
             )
             .join("\n\n---\n\n");
-          onCopy(all);
+          onCopy(all, "画像プロンプト全件");
         }}
         copyText="all"
       />
@@ -456,7 +458,7 @@ const CANVA_SECTIONS: {
   { key: "badgeShortTexts", title: "バッジ・ラベル", usage: "タグ・ステッカー向け", color: "bg-orange-50", borderColor: "border-orange-300" },
 ];
 
-function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
+function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: GenerateResult; onCopy: (t: string, label?: string) => void; onAdjust: (target: AdjustTarget, instruction: string) => Promise<void>; adjusting: boolean }) {
   const allText = CANVA_SECTIONS.map((s) => `【${s.title}】\n${result.canvaTexts[s.key].join("\n")}`).join("\n\n");
 
   return (
@@ -465,7 +467,7 @@ function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: Gener
         links={[
           { label: "Canvaを開く", url: EXTERNAL_URLS.canvaHome, color: "bg-indigo-500" },
         ]}
-        onCopy={() => onCopy(allText)}
+        onCopy={() => onCopy(allText, "Canva素材全文")}
         copyText={allText}
       />
 
@@ -495,7 +497,7 @@ function CanvaTextsView({ result, onCopy, onAdjust, adjusting }: { result: Gener
               >
                 <span className="font-black text-sm">{item}</span>
                 <button
-                  onClick={() => onCopy(item)}
+                  onClick={() => onCopy(item, title)}
                   className="p-2 bg-white border-2 border-black rounded-lg hover:bg-slate-100 transition-colors shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
                 >
                   <Copy size={14} />
@@ -543,6 +545,16 @@ export default function OutputPanel({ result, loading, error, onRetry, onCopy, o
 
       {/* Content */}
       <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-white">
+        {/* Post-generation guidance (only when results exist) */}
+        {result && !loading && !error && (
+          <div className="mb-4 px-3 py-2 bg-indigo-50 border-2 border-black rounded-xl flex items-center gap-2">
+            <Info size={14} className="text-indigo-500 shrink-0" />
+            <p className="text-[10px] font-bold text-slate-500">
+              各タブからコピーできます。微調整ボタンでトーンの変更も可能です。
+            </p>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {error ? (
             <ErrorState error={error} onRetry={onRetry} />
