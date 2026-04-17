@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits, ChatInputCommandInteraction } from "discord.js";
-import { createJob, getJob, pollJob, listJobs } from "./discord-api";
+import { createJob, getJob, pollJob, listJobs, retryJob } from "./discord-api";
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) {
@@ -30,6 +30,9 @@ client.on("interactionCreate", async (interaction) => {
         break;
       case "recent":
         await handleRecent(interaction);
+        break;
+      case "retry":
+        await handleRetry(interaction);
         break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
@@ -125,7 +128,7 @@ async function handleRecent(i: ChatInputCommandInteraction) {
     // artifact_paths may be string or string[] in older ledger entries
     const paths = normalizePaths(j.artifact_paths);
     const pathLines = paths.length > 0
-      ? paths.map((p) => `  \`${p}\``).join("\n")
+      ? paths.map((p) => `  - ${shortenPath(p)}`).join("\n")
       : "  なし";
     return `**job_id:** \`${j.job_id}\`\n**type:** ${j.type}\n**artifact_paths:**\n${pathLines}`;
   });
@@ -133,10 +136,35 @@ async function handleRecent(i: ChatInputCommandInteraction) {
   await i.editReply(`📋 最近の completed job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
 }
 
+// ============================================================
+// /retry
+// ============================================================
+
+async function handleRetry(i: ChatInputCommandInteraction) {
+  const jobId = i.options.getString("job_id", true);
+  await i.deferReply();
+
+  try {
+    const result = await retryJob(jobId);
+    await i.editReply(
+      `🔄 **再投入しました。**\n元Job ID: \`${result.source_job_id}\`\n新Job ID: \`${result.job_id}\`\nType: ${result.type}\nStatus: ${result.status}`
+    );
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await i.editReply(`❌ 再投入できませんでした。\n理由: ${msg}`);
+  }
+}
+
 function normalizePaths(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((s) => typeof s === "string");
   if (typeof v === "string") return [v];
   return [];
+}
+
+function shortenPath(p: string): string {
+  const segs = p.replace(/\\/g, "/").split("/").filter(Boolean);
+  if (segs.length <= 2) return segs.join("/");
+  return segs.slice(-2).join("/");
 }
 
 // ============================================================
