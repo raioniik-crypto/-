@@ -6,6 +6,7 @@ import * as os from "os";
 import Busboy from "busboy";
 import { runPipeline, getContentFingerprint } from "./pipeline";
 import { validateCreateInput, createJob, findJob, listJobs } from "./jobs";
+import { getFile } from "./github-store";
 import { runOnce } from "./worker";
 
 const PORT = parseInt(process.env.PORT || "3456", 10);
@@ -171,6 +172,45 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /jobs/:id/artifact — read the first artifact's content
+  if (req.method === "GET" && req.url && /^\/jobs\/[A-Za-z0-9_-]+\/artifact$/.test(req.url)) {
+    if (!checkAuth(req, res)) return;
+    const jobId = req.url.slice("/jobs/".length, req.url.length - "/artifact".length);
+    try {
+      const job = await findJob(jobId);
+      if (!job) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found", message: "job が見つかりませんでした。" }));
+        return;
+      }
+      const paths = Array.isArray(job.artifact_paths) ? job.artifact_paths : job.artifact_paths ? [job.artifact_paths] : [];
+      if (paths.length === 0) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "no_artifact", message: "この job には artifact_paths がありません。" }));
+        return;
+      }
+      const artifactPath = paths[0];
+      const content = await getFile(artifactPath);
+      if (content === null) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "artifact_not_found", message: "成果物ファイルが見つかりませんでした。" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        job_id: job.job_id,
+        type: job.type,
+        artifact_path: artifactPath,
+        content,
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error", message: msg }));
+    }
+    return;
+  }
+
   // POST /jobs/:id/retry — re-submit a failed job as a new queued job
   if (req.method === "POST" && req.url && /^\/jobs\/[A-Za-z0-9_-]+\/retry$/.test(req.url)) {
     if (!checkAuth(req, res)) return;
@@ -257,7 +297,7 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({
     error: "not_found",
-    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "POST /jobs/:id/retry", "POST /worker/run-once"],
+    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "GET /jobs/:id/artifact", "POST /jobs/:id/retry", "POST /worker/run-once"],
   }));
 });
 
@@ -267,6 +307,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("  POST /ingest    — multipart/form-data with 'file' field");
   console.log("  POST /jobs      — create a new job (JSON body)");
   console.log("  GET  /jobs/:id  — fetch a job by id");
+  console.log("  GET  /jobs/:id/artifact — read artifact content");
   console.log("  POST /jobs/:id/retry — re-submit a failed job");
   console.log("  POST /worker/run-once — process one queued job");
   console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);

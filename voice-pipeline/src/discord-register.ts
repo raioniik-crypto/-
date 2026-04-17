@@ -78,6 +78,13 @@ const commands = [
   new SlashCommandBuilder()
     .setName("help")
     .setDescription("コマンド早見表を表示する"),
+
+  new SlashCommandBuilder()
+    .setName("artifact")
+    .setDescription("job の成果物本文を表示する")
+    .addStringOption((o) =>
+      o.setName("job_id").setDescription("JOB-XXXXXXXX-XXXXXX").setRequired(true)
+    ),
 ].map((c) => c.toJSON());
 
 async function main() {
