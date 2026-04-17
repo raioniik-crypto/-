@@ -125,7 +125,7 @@ async function handleRecent(i: ChatInputCommandInteraction) {
     // artifact_paths may be string or string[] in older ledger entries
     const paths = normalizePaths(j.artifact_paths);
     const pathLines = paths.length > 0
-      ? paths.map((p) => `  \`${p}\``).join("\n")
+      ? paths.map((p) => `  - ${shortenPath(p)}`).join("\n")
       : "  なし";
     return `**job_id:** \`${j.job_id}\`\n**type:** ${j.type}\n**artifact_paths:**\n${pathLines}`;
   });
@@ -137,6 +137,12 @@ function normalizePaths(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((s) => typeof s === "string");
   if (typeof v === "string") return [v];
   return [];
+}
+
+function shortenPath(p: string): string {
+  const segs = p.replace(/\\/g, "/").split("/").filter(Boolean);
+  if (segs.length <= 2) return segs.join("/");
+  return segs.slice(-2).join("/");
 }
 
 // ============================================================
