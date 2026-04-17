@@ -1,4 +1,4 @@
-export type JobType = "memo_capture" | "content_draft" | "dev_brief";
+export type JobType = "memo_capture" | "content_draft" | "dev_brief" | "x_post" | "instagram_caption";
 
 export type JobStatus =
   | "queued"

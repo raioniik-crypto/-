@@ -310,6 +310,110 @@ ${job.instruction}
 }
 
 // ============================================================
+// x_post executor
+// ============================================================
+
+async function executeXPost(
+  job: Job
+): Promise<{ artifactPaths: string[]; summary: string }> {
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "x_post", "02_ライティング/X Posts");
+  const inst = job.instruction;
+  const short = inst.length > 50 ? inst.slice(0, 47) + "..." : inst;
+
+  const markdown = `---
+title: "${safeTitle}"
+created_at: "${isoDate}"
+type: "x_post"
+source: "${job.source ?? "api"}"
+requested_by: "${job.requested_by ?? "unknown"}"
+job_id: "${job.job_id}"
+status: "completed"
+generation_mode: "template"
+---
+
+# X投稿下書き: ${safeTitle}
+
+## 依頼概要
+${inst}
+
+## 投稿案1（丁寧）
+${inst}
+一歩ずつ進めています。
+
+## 投稿案2（熱量）
+${inst}——やると決めたのでやる。
+
+## 短文版
+${short}
+
+## ハッシュタグ案
+${generateHashtags(inst)}
+
+## メモ
+- 依頼元: ${job.requested_by ?? "未指定"}
+- X向けなので簡潔さ重視。140字を意識。
+`;
+
+  await putFile(repoPath, markdown, `x_post: ${safeTitle} (${job.job_id})`);
+  return { artifactPaths: [repoPath], summary: `Saved x_post to ${repoPath}` };
+}
+
+// ============================================================
+// instagram_caption executor
+// ============================================================
+
+async function executeInstagramCaption(
+  job: Job
+): Promise<{ artifactPaths: string[]; summary: string }> {
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "instagram_caption", "02_ライティング/Instagram Captions");
+  const inst = job.instruction;
+  const short = inst.length > 40 ? inst.slice(0, 37) + "..." : inst;
+
+  const markdown = `---
+title: "${safeTitle}"
+created_at: "${isoDate}"
+type: "instagram_caption"
+source: "${job.source ?? "api"}"
+requested_by: "${job.requested_by ?? "unknown"}"
+job_id: "${job.job_id}"
+status: "completed"
+generation_mode: "template"
+---
+
+# Instagramキャプション下書き: ${safeTitle}
+
+## 依頼概要
+${inst}
+
+## キャプション案1（丁寧）
+${inst}
+
+少しずつ、でも着実に。
+今日の一歩を記録しておきます。
+
+## キャプション案2（情景）
+${inst}
+
+ふと手を止めて振り返ると、ちゃんと進んでいた。
+そういう日もあっていい。
+
+## 短文版
+${short}
+
+## ハッシュタグ案
+${generateHashtags(inst)} #記録 #日々のこと #つくる暮らし
+
+## メモ
+- 依頼元: ${job.requested_by ?? "未指定"}
+- Instagram向け。余白と温度感を意識。
+- 画像が決まったらキャプションを調整してください。
+`;
+
+  await putFile(repoPath, markdown, `instagram_caption: ${safeTitle} (${job.job_id})`);
+  return { artifactPaths: [repoPath], summary: `Saved instagram_caption to ${repoPath}` };
+}
+
+// ============================================================
 // Executor registry
 // ============================================================
 
@@ -319,6 +423,8 @@ const executors: Record<string, JobExecutor> = {
   memo_capture: executeMemoCapture,
   dev_brief: executeDevBrief,
   content_draft: executeContentDraft,
+  x_post: executeXPost,
+  instagram_caption: executeInstagramCaption,
 };
 
 // ============================================================

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { putFile, getFile, deleteFile, listDir } from "./github-store";
 import { Job, JobStatus, JobType, CreateJobInput } from "./types";
 
-const VALID_TYPES: JobType[] = ["memo_capture", "content_draft", "dev_brief"];
+const VALID_TYPES: JobType[] = ["memo_capture", "content_draft", "dev_brief", "x_post", "instagram_caption"];
 
 // Searched in this order when looking up a job by id.
 const SEARCH_STATUSES: JobStatus[] = [
