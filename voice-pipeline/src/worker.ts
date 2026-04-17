@@ -31,18 +31,11 @@ export async function runOnce(): Promise<WorkerResult> {
   // 2. Move to running
   const running = await moveJob(job, "queued", "running");
 
-  // 3. Execute based on type
+  // 3. Execute
   try {
-    let artifactPaths: string[];
-    let summary: string;
-
-    switch (running.type) {
-      case "memo_capture":
-        ({ artifactPaths, summary } = await executeMemoCapture(running));
-        break;
-      default:
-        throw new Error(`Unsupported job type: ${running.type}`);
-    }
+    const executor = executors[running.type];
+    if (!executor) throw new Error(`Unsupported job type: ${running.type}`);
+    const { artifactPaths, summary } = await executor(running);
 
     // 4. Move to completed
     const completed = await moveJob(running, "running", "completed", {
@@ -116,6 +109,86 @@ function extractNextActions(text: string): string {
   if (lines.length > 0) return lines.join("\n");
   return "\u306a\u3057";
 }
+
+// ============================================================
+// dev_brief executor
+// ============================================================
+
+async function executeDevBrief(
+  job: Job
+): Promise<{ artifactPaths: string[]; summary: string }> {
+  return saveSimpleMarkdown(job, "dev_brief");
+}
+
+// ============================================================
+// content_draft executor
+// ============================================================
+
+async function executeContentDraft(
+  job: Job
+): Promise<{ artifactPaths: string[]; summary: string }> {
+  return saveSimpleMarkdown(job, "content_draft");
+}
+
+async function saveSimpleMarkdown(
+  job: Job,
+  type: string
+): Promise<{ artifactPaths: string[]; summary: string }> {
+  const now = new Date();
+  const isoDate = now.toISOString();
+  const dateStr = isoDate.slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5).replace(":", "");
+
+  const safeTitle = job.instruction
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[/\\:*?"<>|]/g, "_")
+    .slice(0, 50)
+    .trim() || type;
+
+  const vaultBase = process.env.GITHUB_VAULT_PATH
+    ? process.env.GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/"
+    : "";
+  const filename = `${dateStr}_${timeStr}_${type}_${safeTitle}.md`;
+  const repoPath = `${vaultBase}Inbox/${filename}`;
+
+  const markdown = `---
+title: "${safeTitle}"
+created_at: "${isoDate}"
+type: "${type}"
+source: "${job.source ?? "api"}"
+requested_by: "${job.requested_by ?? "unknown"}"
+job_id: "${job.job_id}"
+status: "completed"
+---
+
+# ${safeTitle}
+
+## 指示内容
+${job.instruction}
+
+## 本文
+${job.instruction}
+`;
+
+  await putFile(repoPath, markdown, `${type}: ${safeTitle} (${job.job_id})`);
+
+  return {
+    artifactPaths: [repoPath],
+    summary: `Saved ${type} to ${repoPath}`,
+  };
+}
+
+// ============================================================
+// Executor registry
+// ============================================================
+
+type JobExecutor = (job: Job) => Promise<{ artifactPaths: string[]; summary: string }>;
+
+const executors: Record<string, JobExecutor> = {
+  memo_capture: executeMemoCapture,
+  dev_brief: executeDevBrief,
+  content_draft: executeContentDraft,
+};
 
 // ============================================================
 // Loop mode
