@@ -438,7 +438,10 @@ async function executeInstagramCaption(
 ): Promise<{ artifactPaths: string[]; summary: string }> {
   const { repoPath, safeTitle, isoDate } = buildFilePath(job, "instagram_caption", "02_ライティング/Instagram Captions");
   const inst = job.instruction;
-  const short = inst.length > 40 ? inst.slice(0, 37) + "..." : inst;
+
+  // Extract scene keywords from instruction instead of using raw text
+  const scene = extractScene(inst);
+  const tags = generateInstaTags(inst);
 
   const markdown = `---
 title: "${safeTitle}"
@@ -454,38 +457,67 @@ generation_mode: "template"
 # Instagramキャプション下書き: ${safeTitle}
 
 ## キャプション案1（やわらかめ）
-${inst}。
+${scene.setting}、
+${scene.action}。
 
-少しずつ、でも着実に。
+大きく進んだわけじゃなくても、
+少しずつ形になっていく時間が好きです。
 
-完璧じゃなくても、
-手を動かした日は、ちゃんと前に進んでる。
-
-今日もそんな一日でした。
+今日も、ちゃんと一歩。
 
 ## キャプション案2（芯あり）
-${inst}。
+${scene.setting}に手を動かした分だけ、
+前に進める気がする。
 
-迷うことはあるけど、
-やると決めたことは最後までやる。
+派手じゃなくても、
+積み重ねた時間はちゃんと力になる。
 
-途中経過も、立派な記録。
+${scene.action}、継続中です。
 
 ## 短め版
-${short}
-今日の一歩。
+${scene.setting}と、${scene.action}。
+今日も少しずつ前へ。
 
 ## ハッシュタグ案
-${generateHashtags(inst)} #記録 #日々のこと #つくる暮らし #今日の一歩 #作業ログ
+${tags}
 
-## メモ
-- 依頼元: ${job.requested_by ?? "未指定"}
-- Instagram向け。余白と温度感を意識。
-- 画像が決まったらキャプションを調整してください。
+## 投稿トーンメモ
+- 案1: 穏やか・日常記録向き
+- 案2: 継続・意志を込めたいとき向き
+- 画像が決まったらキャプションを微調整してください
 `;
 
   await putFile(repoPath, markdown, `instagram_caption: ${safeTitle} (${job.job_id})`);
   return { artifactPaths: [repoPath], summary: `Saved instagram_caption to ${repoPath}` };
+}
+
+/** Extract scene elements from instruction for natural caption generation. */
+function extractScene(inst: string): { setting: string; action: string } {
+  // Strip trailing intent expressions like ～したい / ～してほしい / ～にしたい
+  const cleaned = inst
+    .replace(/[。、．，]+$/g, "")
+    .replace(/[をにが]?[、。]?(?:投稿文に|キャプションに|文章に)?(?:したい|してほしい|してください|する|して)$/g, "")
+    .replace(/[、。]?(?:やわらかく|丁寧に|短く|自然に)$/g, "")
+    .trim();
+
+  // Try to split on particles to find setting vs action
+  const parts = cleaned.split(/[、。をにで]/g).filter((s) => s.trim().length > 0);
+  if (parts.length >= 2) {
+    return { setting: parts[0].trim(), action: parts.slice(1).join("、").trim() };
+  }
+  // Fallback: use cleaned text for both
+  return { setting: cleaned, action: "静かに手を動かした時間" };
+}
+
+/** Generate Instagram-appropriate hashtags from instruction keywords. */
+function generateInstaTags(inst: string): string {
+  const cleaned = inst
+    .replace(/[をにがはのでと、。？！…\r\n]+/g, " ")
+    .replace(/(?:したい|してほしい|してください|する|して|やわらかく|丁寧に)$/g, "");
+  const words = cleaned.split(/\s+/).filter((w) => w.length >= 2 && w.length <= 10);
+  const unique = [...new Set(words)].slice(0, 3);
+  const base = unique.map((w) => `#${w}`).join(" ");
+  return `${base} #日々の記録 #作業ログ #ものづくり #今日の一歩 #つくる暮らし`.trim();
 }
 
 // ============================================================
