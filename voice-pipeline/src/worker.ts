@@ -152,12 +152,15 @@ async function executeDevBrief(
   const { repoPath, safeTitle, isoDate } = buildFilePath(job, "dev_brief", "03_開発/Dev Briefs");
   const inst = job.instruction;
 
+  const meta = job.metadata && Object.keys(job.metadata).length > 0 ? JSON.stringify(job.metadata) : "なし";
+  const by = job.requested_by ?? "未指定";
+
   const markdown = `---
 title: "${safeTitle}"
 created_at: "${isoDate}"
 type: "dev_brief"
 source: "${job.source ?? "api"}"
-requested_by: "${job.requested_by ?? "unknown"}"
+requested_by: "${by}"
 job_id: "${job.job_id}"
 status: "completed"
 generation_mode: "template"
@@ -168,40 +171,84 @@ generation_mode: "template"
 ## 概要
 ${inst}
 
+## 背景
+この依頼の背景や動機を以下に整理する。
+- 依頼元: ${by}
+- 補足情報: ${meta}
+- 不明点があれば着手前に依頼者へ確認すること
+
 ## 目的
 ${inst} を実現する。既存の動作を維持しつつ、必要最小限の変更で対応する。
 
 ## やること
-- [ ] ${inst} に必要な要件を整理する
-- [ ] 影響範囲を確認する
+- [ ] 要件を整理し、不明点を洗い出す
+- [ ] ${inst} の実装方針を決める
+- [ ] 影響範囲を特定する
 - [ ] 実装する
 - [ ] ローカルで動作確認する
 - [ ] レビュー・本番反映する
 
+## スコープ
+- ${inst} に直接関わる変更のみ
+- 依頼内容に明示されていない周辺改修は含めない
+
+## 非スコープ
+- 依頼内容に含まれない既存機能の大規模リファクタ
+- 今回の依頼と無関係な UI/UX 変更
+- 不明点は着手前に確認し、勝手にスコープを広げない
+
 ## 入力
 - 依頼内容: ${inst}
-- 依頼元: ${job.requested_by ?? "未指定"}
-- 補足: ${job.metadata && Object.keys(job.metadata).length > 0 ? JSON.stringify(job.metadata) : "なし"}
+- 依頼元: ${by}
+- 補足: ${meta}
 
 ## 出力
 - 本ブリーフに基づく実装成果物
-- 動作確認結果
+- 動作確認結果のレポートまたはスクリーンショット
 
 ## 制約
 - 既存機能を壊さないこと
 - 最小変更で対応すること
 - 詳細要件が未確定の場合は、既存仕様との整合確認を優先すること
+- パフォーマンスやセキュリティに影響する変更は事前共有すること
 
-## 実装メモ
-- 着手前に依頼者へ不明点を確認すること
-- 想定外の影響があれば早めに共有すること
+## 実装方針
+- まず既存コードの該当箇所を確認する
+- 変更範囲を最小限に絞る
+- 不要な抽象化や先回り実装は行わない
+- 既存のコーディング規約・命名規則に従う
+
+## 作業手順
+1. 本ブリーフの内容を確認し、不明点があれば依頼者に質問する
+2. 影響範囲を調査し、変更対象ファイルを特定する
+3. 実装する
+4. ローカルで動作確認する
+5. コードレビューを依頼する
+6. 本番環境に反映する
+7. 本番で動作確認する
+
+## 受け入れ条件
+- [ ] ${inst} が正しく動作すること
+- [ ] 既存機能が壊れていないこと
+- [ ] エラーハンドリングが適切であること
+- [ ] 本番反映後の動作確認が完了していること
 
 ## 確認手順
 - [ ] 変更対象のファイルが最小限であること
+- [ ] ローカルで正常系・異常系を確認したこと
 - [ ] 既存のテストや動作が壊れていないこと
 - [ ] 依頼内容が正しく反映されていること
-- [ ] エラーハンドリングが入っていること
-- [ ] 本番反映後に実際の動作を確認すること
+- [ ] 本番反映後に実際の動作を確認したこと
+
+## リスク / 注意点
+- 依頼内容の詳細が不足している場合、実装者の解釈で進めるリスクがある → 着手前に確認
+- 影響範囲が想定より広い場合がある → 調査結果を早めに共有
+- 本番反映後に問題が発覚した場合の切り戻し手順を事前に確認しておくこと
+
+## メモ
+- 着手前に依頼者へ不明点を確認すること
+- 想定外の影響があれば早めに共有すること
+- 完了後は本ブリーフの受け入れ条件を再確認すること
 `;
 
   await putFile(repoPath, markdown, `dev_brief: ${safeTitle} (${job.job_id})`);
@@ -233,26 +280,44 @@ generation_mode: "template"
 
 # コンテンツ下書き: ${safeTitle}
 
-## 依頼概要
-${inst}
+## 方向性メモ
+- 主題: ${inst}
+- 想定読者: ${inst} に関心がある層
+- トーン: 実感ベース、押し付けない、自分の言葉で
 
-## 投稿案1（丁寧）
-${inst}
+## 投稿案1（共感・丁寧）
+${inst}。
 
-少しずつ形になってきました。まだ途中ですが、ここまでの進捗を共有します。
+正直まだ手探りだけど、やってみて分かることがある。
+完成してから出すんじゃなくて、途中の今を残しておく。
 
-## 投稿案2（勢い）
-${inst}——やると決めたからにはやりきる。進捗、出します。
+## 投稿案2（実用・学び）
+${inst} について整理してみた。
+
+やってみて気づいたのは、最初の一歩が一番重い、ということ。
+でも動き出すと意外と転がる。誰かの参考になれば。
+
+## 投稿案3（宣言・勢い）
+${inst}——やると決めた以上、形にする。
+
+完璧じゃなくていい。まず出す。直すのはそのあと。
 
 ## 短文版
 ${short}
 
+## CTA案
+- 同じこと考えてる人いたら教えてください
+- 感想・質問あれば気軽にどうぞ
+- 続きが気になったらフォローしておいてください
+
 ## ハッシュタグ案
 ${generateHashtags(inst)}
 
-## メモ
-- 依頼元: ${job.requested_by ?? "未指定"}
-- 元の指示: ${inst}
+## 使い分けメモ
+- 案1: ブログ・note向き。丁寧に伝えたいとき
+- 案2: X・はてブ向き。学びを共有したいとき
+- 案3: X・ストーリーズ向き。勢いで投稿したいとき
+- 短文版: リポスト・引用向き
 - トーン調整や追加の切り口が必要な場合は再依頼してください
 `;
 
@@ -333,25 +398,31 @@ generation_mode: "template"
 
 # X投稿下書き: ${safeTitle}
 
-## 依頼概要
-${inst}
-
-## 投稿案1（丁寧）
-${inst}
-一歩ずつ進めています。
-
-## 投稿案2（熱量）
-${inst}——やると決めたのでやる。
-
-## 短文版
+## 投稿案1（共感型）
 ${short}
+
+やってみて初めて分かることがある。完璧じゃなくても、動いた人にしか見えない景色がある。
+
+## 投稿案2（学び型）
+${inst} を試してみた。
+
+結論: まずやる。考えすぎるより手を動かした方が早い。
+
+## 投稿案3（宣言型）
+${inst}。やる。
+
+## 一言フック案
+- 「${short}」← これ、やってみたら意外と回った
+- 地味だけど効いた話: ${short}
+- 今日やったこと → ${short}
 
 ## ハッシュタグ案
 ${generateHashtags(inst)}
 
 ## メモ
-- 依頼元: ${job.requested_by ?? "未指定"}
-- X向けなので簡潔さ重視。140字を意識。
+- X向け: 140字を意識、簡潔さ優先
+- 案1は共感を引く、案2は知見共有、案3は短く宣言
+- フック案はそのままツイート冒頭に使える想定
 `;
 
   await putFile(repoPath, markdown, `x_post: ${safeTitle} (${job.job_id})`);
@@ -367,7 +438,10 @@ async function executeInstagramCaption(
 ): Promise<{ artifactPaths: string[]; summary: string }> {
   const { repoPath, safeTitle, isoDate } = buildFilePath(job, "instagram_caption", "02_ライティング/Instagram Captions");
   const inst = job.instruction;
-  const short = inst.length > 40 ? inst.slice(0, 37) + "..." : inst;
+
+  // Extract scene keywords from instruction instead of using raw text
+  const scene = extractScene(inst);
+  const tags = generateInstaTags(inst);
 
   const markdown = `---
 title: "${safeTitle}"
@@ -382,35 +456,68 @@ generation_mode: "template"
 
 # Instagramキャプション下書き: ${safeTitle}
 
-## 依頼概要
-${inst}
+## キャプション案1（やわらかめ）
+${scene.setting}、
+${scene.action}。
 
-## キャプション案1（丁寧）
-${inst}
+大きく進んだわけじゃなくても、
+少しずつ形になっていく時間が好きです。
 
-少しずつ、でも着実に。
-今日の一歩を記録しておきます。
+今日も、ちゃんと一歩。
 
-## キャプション案2（情景）
-${inst}
+## キャプション案2（芯あり）
+${scene.setting}に手を動かした分だけ、
+前に進める気がする。
 
-ふと手を止めて振り返ると、ちゃんと進んでいた。
-そういう日もあっていい。
+派手じゃなくても、
+積み重ねた時間はちゃんと力になる。
 
-## 短文版
-${short}
+${scene.action}、継続中です。
+
+## 短め版
+${scene.setting}と、${scene.action}。
+今日も少しずつ前へ。
 
 ## ハッシュタグ案
-${generateHashtags(inst)} #記録 #日々のこと #つくる暮らし
+${tags}
 
-## メモ
-- 依頼元: ${job.requested_by ?? "未指定"}
-- Instagram向け。余白と温度感を意識。
-- 画像が決まったらキャプションを調整してください。
+## 投稿トーンメモ
+- 案1: 穏やか・日常記録向き
+- 案2: 継続・意志を込めたいとき向き
+- 画像が決まったらキャプションを微調整してください
 `;
 
   await putFile(repoPath, markdown, `instagram_caption: ${safeTitle} (${job.job_id})`);
   return { artifactPaths: [repoPath], summary: `Saved instagram_caption to ${repoPath}` };
+}
+
+/** Extract scene elements from instruction for natural caption generation. */
+function extractScene(inst: string): { setting: string; action: string } {
+  // Strip trailing intent expressions like ～したい / ～してほしい / ～にしたい
+  const cleaned = inst
+    .replace(/[。、．，]+$/g, "")
+    .replace(/[をにが]?[、。]?(?:投稿文に|キャプションに|文章に)?(?:したい|してほしい|してください|する|して)$/g, "")
+    .replace(/[、。]?(?:やわらかく|丁寧に|短く|自然に)$/g, "")
+    .trim();
+
+  // Try to split on particles to find setting vs action
+  const parts = cleaned.split(/[、。をにで]/g).filter((s) => s.trim().length > 0);
+  if (parts.length >= 2) {
+    return { setting: parts[0].trim(), action: parts.slice(1).join("、").trim() };
+  }
+  // Fallback: use cleaned text for both
+  return { setting: cleaned, action: "静かに手を動かした時間" };
+}
+
+/** Generate Instagram-appropriate hashtags from instruction keywords. */
+function generateInstaTags(inst: string): string {
+  const cleaned = inst
+    .replace(/[をにがはのでと、。？！…\r\n]+/g, " ")
+    .replace(/(?:したい|してほしい|してください|する|して|やわらかく|丁寧に)$/g, "");
+  const words = cleaned.split(/\s+/).filter((w) => w.length >= 2 && w.length <= 10);
+  const unique = [...new Set(words)].slice(0, 3);
+  const base = unique.map((w) => `#${w}`).join(" ");
+  return `${base} #日々の記録 #作業ログ #ものづくり #今日の一歩 #つくる暮らし`.trim();
 }
 
 // ============================================================
