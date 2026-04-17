@@ -29,7 +29,9 @@ const commands = [
         .addChoices(
           { name: "memo_capture", value: "memo_capture" },
           { name: "content_draft", value: "content_draft" },
-          { name: "dev_brief", value: "dev_brief" }
+          { name: "dev_brief", value: "dev_brief" },
+          { name: "x_post", value: "x_post" },
+          { name: "instagram_caption", value: "instagram_caption" }
         )
     )
     .addStringOption((o) =>
