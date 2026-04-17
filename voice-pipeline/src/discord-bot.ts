@@ -37,6 +37,9 @@ client.on("interactionCreate", async (interaction) => {
       case "jobs":
         await handleJobs(interaction);
         break;
+      case "help":
+        await handleHelp(interaction);
+        break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
     }
@@ -184,6 +187,38 @@ async function handleJobs(i: ChatInputCommandInteraction) {
   });
 
   await i.editReply(`📋 **${status}** の job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
+}
+
+// ============================================================
+// /help
+// ============================================================
+
+async function handleHelp(i: ChatInputCommandInteraction) {
+  const text = `📘 **スマホ司令塔 早見表**
+
+**投げる**
+\`/memo\` — とりあえず残す
+\`/job\` — 用途別の成果物を作る
+
+**見る**
+\`/status\` — 1件の状態確認
+\`/recent\` — 直近の completed を見る
+\`/jobs\` — status ごとの一覧を見る
+
+**立て直す**
+\`/retry\` — failed job を再投入
+
+**迷った時**
+何か残したい → \`/memo\`
+用途別に作りたい → \`/job\`
+1件だけ確認 → \`/status\`
+最近の結果 → \`/recent\`
+一覧で見たい → \`/jobs\`
+失敗やり直し → \`/retry\`
+
+⚠ \`/retry\` は failed job のみ対象です。`;
+
+  await i.reply({ content: text, ephemeral: true });
 }
 
 function normalizePaths(v: unknown): string[] {

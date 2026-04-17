@@ -74,6 +74,10 @@ const commands = [
     .addIntegerOption((o) =>
       o.setName("limit").setDescription("表示件数 (デフォルト5, 最大10)").setRequired(false)
     ),
+
+  new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("コマンド早見表を表示する"),
 ].map((c) => c.toJSON());
 
 async function main() {
