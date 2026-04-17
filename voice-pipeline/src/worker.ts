@@ -111,13 +111,81 @@ function extractNextActions(text: string): string {
 }
 
 // ============================================================
+// Shared file path builder
+// ============================================================
+
+function buildFilePath(job: Job, type: string): { repoPath: string; safeTitle: string; isoDate: string } {
+  const now = new Date();
+  const isoDate = now.toISOString();
+  const dateStr = isoDate.slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5).replace(":", "");
+  const safeTitle = job.instruction
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[/\\:*?"<>|]/g, "_")
+    .slice(0, 50)
+    .trim() || type;
+  const vaultBase = process.env.GITHUB_VAULT_PATH
+    ? process.env.GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/"
+    : "";
+  const filename = `${dateStr}_${timeStr}_${type}_${safeTitle}.md`;
+  const repoPath = `${vaultBase}Inbox/${filename}`;
+  return { repoPath, safeTitle, isoDate };
+}
+
+// ============================================================
 // dev_brief executor
 // ============================================================
 
 async function executeDevBrief(
   job: Job
 ): Promise<{ artifactPaths: string[]; summary: string }> {
-  return saveSimpleMarkdown(job, "dev_brief");
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "dev_brief");
+  const inst = job.instruction;
+
+  const markdown = `---
+title: "${safeTitle}"
+created_at: "${isoDate}"
+type: "dev_brief"
+source: "${job.source ?? "api"}"
+requested_by: "${job.requested_by ?? "unknown"}"
+job_id: "${job.job_id}"
+status: "completed"
+generation_mode: "template"
+---
+
+# 開発ブリーフ
+
+## 概要
+${inst}
+
+## 目的
+（${safeTitle} の目的をここに記載）
+
+## やること
+- [ ] 要件を整理する
+- [ ] 実装する
+- [ ] 動作確認する
+
+## 入力
+- 指示内容: ${inst}
+
+## 出力
+- 成果物の定義をここに記載
+
+## 制約
+- 既存機能を壊さないこと
+- 最小変更で対応すること
+
+## 実装メモ
+（実装時の補足をここに記載）
+
+## 確認手順
+- [ ] ローカルで動作確認
+- [ ] 本番反映後の確認
+`;
+
+  await putFile(repoPath, markdown, `dev_brief: ${safeTitle} (${job.job_id})`);
+  return { artifactPaths: [repoPath], summary: `Saved dev_brief to ${repoPath}` };
 }
 
 // ============================================================
@@ -127,9 +195,46 @@ async function executeDevBrief(
 async function executeContentDraft(
   job: Job
 ): Promise<{ artifactPaths: string[]; summary: string }> {
-  return saveSimpleMarkdown(job, "content_draft");
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "content_draft");
+  const inst = job.instruction;
+
+  const markdown = `---
+title: "${safeTitle}"
+created_at: "${isoDate}"
+type: "content_draft"
+source: "${job.source ?? "api"}"
+requested_by: "${job.requested_by ?? "unknown"}"
+job_id: "${job.job_id}"
+status: "completed"
+generation_mode: "template"
+---
+
+# コンテンツ下書き
+
+## 依頼概要
+${inst}
+
+## 投稿案1
+（依頼内容をもとにした投稿案をここに記載）
+
+## 投稿案2
+（別の切り口での投稿案をここに記載）
+
+## 短文版
+（SNS向け短文版をここに記載）
+
+## ハッシュタグ案
+#
+
+## メモ
+- 元の指示: ${inst}
+`;
+
+  await putFile(repoPath, markdown, `content_draft: ${safeTitle} (${job.job_id})`);
+  return { artifactPaths: [repoPath], summary: `Saved content_draft to ${repoPath}` };
 }
 
+// saveSimpleMarkdown is kept as fallback for future executor types
 async function saveSimpleMarkdown(
   job: Job,
   type: string
