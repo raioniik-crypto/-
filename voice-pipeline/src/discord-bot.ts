@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits, ChatInputCommandInteraction } from "discord.js";
-import { createJob, getJob, pollJob, listJobs, retryJob } from "./discord-api";
+import { createJob, getJob, pollJob, listJobs, retryJob, getArtifact } from "./discord-api";
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) {
@@ -39,6 +39,9 @@ client.on("interactionCreate", async (interaction) => {
         break;
       case "help":
         await handleHelp(interaction);
+        break;
+      case "artifact":
+        await handleArtifact(interaction);
         break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
@@ -219,6 +222,41 @@ async function handleHelp(i: ChatInputCommandInteraction) {
 ⚠ \`/retry\` は failed job のみ対象です。`;
 
   await i.reply({ content: text, ephemeral: true });
+}
+
+// ============================================================
+// /artifact
+// ============================================================
+
+const ARTIFACT_MAX_CHARS = 1400;
+
+async function handleArtifact(i: ChatInputCommandInteraction) {
+  const jobId = i.options.getString("job_id", true);
+  await i.deferReply();
+
+  try {
+    const a = await getArtifact(jobId);
+    let body = a.content;
+    let truncated = false;
+    if (body.length > ARTIFACT_MAX_CHARS) {
+      body = body.slice(0, ARTIFACT_MAX_CHARS);
+      truncated = true;
+    }
+    const lines = [
+      `📄 **成果物を表示します。**`,
+      `**job_id:** \`${a.job_id}\``,
+      `**type:** ${a.type}`,
+      `**artifact_path:** ${shortenPath(a.artifact_path)}`,
+      ``,
+      `**本文:**`,
+      body,
+    ];
+    if (truncated) lines.push(`\n（長いため冒頭のみ表示）`);
+    await i.editReply(lines.join("\n"));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await i.editReply(`❌ ${msg}`);
+  }
 }
 
 function normalizePaths(v: unknown): string[] {

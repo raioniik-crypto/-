@@ -78,6 +78,24 @@ export async function retryJob(jobId: string): Promise<RetryJobResponse> {
   return (await res.json()) as RetryJobResponse;
 }
 
+export interface ArtifactResponse {
+  job_id: string;
+  type: string;
+  artifact_path: string;
+  content: string;
+}
+
+export async function getArtifact(jobId: string): Promise<ArtifactResponse> {
+  const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}/artifact`, {
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+    throw new Error(data.message || data.error || `artifact fetch failed: ${res.status}`);
+  }
+  return (await res.json()) as ArtifactResponse;
+}
+
 export async function getJob(jobId: string): Promise<Job | null> {
   const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
     headers: headers(),
