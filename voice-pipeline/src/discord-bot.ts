@@ -34,6 +34,9 @@ client.on("interactionCreate", async (interaction) => {
       case "retry":
         await handleRetry(interaction);
         break;
+      case "jobs":
+        await handleJobs(interaction);
+        break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
     }
@@ -153,6 +156,34 @@ async function handleRetry(i: ChatInputCommandInteraction) {
     const msg = err instanceof Error ? err.message : String(err);
     await i.editReply(`❌ 再投入できませんでした。\n理由: ${msg}`);
   }
+}
+
+// ============================================================
+// /jobs
+// ============================================================
+
+async function handleJobs(i: ChatInputCommandInteraction) {
+  const status = i.options.getString("status", true);
+  const rawLimit = i.options.getInteger("limit") ?? 5;
+  const limit = Math.min(Math.max(rawLimit, 1), 10);
+  await i.deferReply();
+
+  const items = await listJobs({ status, limit });
+  if (items.length === 0) {
+    await i.editReply(`該当する job は見つかりませんでした。(status: ${status})`);
+    return;
+  }
+
+  const blocks = items.map((j) => {
+    const paths = normalizePaths(j.artifact_paths);
+    let block = `**job_id:** \`${j.job_id}\`\n**type:** ${j.type}\n**status:** ${j.status}`;
+    if (paths.length > 0) {
+      block += `\n**artifact_paths:**\n${paths.map((p) => `  - ${shortenPath(p)}`).join("\n")}`;
+    }
+    return block;
+  });
+
+  await i.editReply(`📋 **${status}** の job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
 }
 
 function normalizePaths(v: unknown): string[] {
