@@ -55,6 +55,25 @@ const commands = [
     .addStringOption((o) =>
       o.setName("job_id").setDescription("再投入する job の ID").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("jobs")
+    .setDescription("status ごとの job 一覧を表示する")
+    .addStringOption((o) =>
+      o
+        .setName("status")
+        .setDescription("表示する status")
+        .setRequired(true)
+        .addChoices(
+          { name: "completed", value: "completed" },
+          { name: "queued", value: "queued" },
+          { name: "running", value: "running" },
+          { name: "failed", value: "failed" }
+        )
+    )
+    .addIntegerOption((o) =>
+      o.setName("limit").setDescription("表示件数 (デフォルト5, 最大10)").setRequired(false)
+    ),
 ].map((c) => c.toJSON());
 
 async function main() {
