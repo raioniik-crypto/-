@@ -128,11 +128,7 @@ let stopping = false;
 let busy = false;
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    // Allow the timer to not block process exit once stopping
-    if (typeof timer === "object" && "unref" in timer) timer.unref();
-  });
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function runLoop(): Promise<void> {
@@ -192,12 +188,10 @@ if (isCli) {
   const isLoop = process.argv.includes("--loop");
 
   if (isLoop) {
-    runLoop()
-      .then(() => process.exit(0))
-      .catch((err) => {
-        console.error("[worker:loop] Fatal:", err);
-        process.exit(1);
-      });
+    runLoop().catch((err) => {
+      console.error("[worker:loop] Fatal:", err);
+      process.exit(1);
+    });
   } else {
     runOnce()
       .then((r) => {
