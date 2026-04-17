@@ -118,6 +118,28 @@ export async function findJob(jobId: string): Promise<Job | null> {
   return best;
 }
 
+/** List jobs, optionally filtered by status, sorted by updated_at desc. */
+export async function listJobs(opts: { status?: string; limit?: number } = {}): Promise<Job[]> {
+  const limit = Math.min(Math.max(opts.limit ?? 5, 1), 20);
+  const statuses: JobStatus[] = opts.status && SEARCH_STATUSES.includes(opts.status as JobStatus)
+    ? [opts.status as JobStatus]
+    : [...SEARCH_STATUSES];
+
+  const jobs: Job[] = [];
+  for (const s of statuses) {
+    const files = await listDir(`system/jobs/${s}`);
+    for (const f of files.filter((n) => n.endsWith(".json"))) {
+      const content = await getFile(`system/jobs/${s}/${f}`);
+      if (content) {
+        try { jobs.push(JSON.parse(content) as Job); } catch { /* skip malformed */ }
+      }
+    }
+  }
+
+  jobs.sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at));
+  return jobs.slice(0, limit);
+}
+
 /** List job IDs in the queued folder. Returns at most `limit` entries. */
 export async function listQueuedJobs(limit = 1): Promise<string[]> {
   const files = await listDir("system/jobs/queued");

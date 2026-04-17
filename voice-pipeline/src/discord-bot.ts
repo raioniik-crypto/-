@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits, ChatInputCommandInteraction } from "discord.js";
-import { createJob, getJob, pollJob } from "./discord-api";
+import { createJob, getJob, pollJob, listJobs } from "./discord-api";
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) {
@@ -27,6 +27,9 @@ client.on("interactionCreate", async (interaction) => {
         break;
       case "status":
         await handleStatus(interaction);
+        break;
+      case "recent":
+        await handleRecent(interaction);
         break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
@@ -103,6 +106,29 @@ async function handleStatus(i: ChatInputCommandInteraction) {
   }
 
   await i.editReply(formatJobStatus(job));
+}
+
+// ============================================================
+// /recent
+// ============================================================
+
+async function handleRecent(i: ChatInputCommandInteraction) {
+  await i.deferReply();
+
+  const items = await listJobs({ status: "completed", limit: 5 });
+  if (items.length === 0) {
+    await i.editReply("完了した job はまだありません。");
+    return;
+  }
+
+  const lines = items.map((j) => {
+    const paths = j.artifact_paths.length > 0
+      ? j.artifact_paths.map((p) => `\`${p}\``).join(", ")
+      : "なし";
+    return `• \`${j.job_id}\` [${j.type}] → ${paths}`;
+  });
+
+  await i.editReply(`📋 **直近の完了 job (${items.length}件)**\n${lines.join("\n")}`);
 }
 
 // ============================================================

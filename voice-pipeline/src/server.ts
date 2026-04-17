@@ -5,7 +5,7 @@ import * as path from "path";
 import * as os from "os";
 import Busboy from "busboy";
 import { runPipeline, getContentFingerprint } from "./pipeline";
-import { validateCreateInput, createJob, findJob } from "./jobs";
+import { validateCreateInput, createJob, findJob, listJobs } from "./jobs";
 import { runOnce } from "./worker";
 
 const PORT = parseInt(process.env.PORT || "3456", 10);
@@ -112,6 +112,33 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ result: "failed", error: msg }));
     } finally {
       if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    }
+    return;
+  }
+
+  // GET /jobs — list jobs (e.g. /jobs?status=completed&limit=5)
+  if (req.method === "GET" && req.url && (req.url === "/jobs" || req.url.startsWith("/jobs?"))) {
+    if (!checkAuth(req, res)) return;
+    try {
+      const params = new URL(req.url, `http://${req.headers.host || "localhost"}`).searchParams;
+      const status = params.get("status") || undefined;
+      const limitRaw = params.get("limit");
+      const limit = limitRaw ? parseInt(limitRaw, 10) : undefined;
+      const items = await listJobs({ status, limit });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        items: items.map((j) => ({
+          job_id: j.job_id,
+          status: j.status,
+          type: j.type,
+          artifact_paths: j.artifact_paths,
+          updated_at: j.updated_at,
+        })),
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error", message: msg }));
     }
     return;
   }
