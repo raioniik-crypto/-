@@ -34,6 +34,30 @@ export async function createJob(opts: {
   return (await res.json()) as CreateJobResponse;
 }
 
+export interface JobSummary {
+  job_id: string;
+  status: string;
+  type: string;
+  artifact_paths: string[];
+  updated_at: string;
+}
+
+export async function listJobs(opts: { status?: string; limit?: number } = {}): Promise<JobSummary[]> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  const res = await fetch(`${BASE_URL}/jobs${qs ? "?" + qs : ""}`, {
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GET /jobs ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { items: JobSummary[] };
+  return data.items;
+}
+
 export async function getJob(jobId: string): Promise<Job | null> {
   const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
     headers: headers(),

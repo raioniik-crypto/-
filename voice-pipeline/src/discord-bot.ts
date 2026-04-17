@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits, ChatInputCommandInteraction } from "discord.js";
-import { createJob, getJob, pollJob } from "./discord-api";
+import { createJob, getJob, pollJob, listJobs } from "./discord-api";
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 if (!TOKEN) {
@@ -27,6 +27,9 @@ client.on("interactionCreate", async (interaction) => {
         break;
       case "status":
         await handleStatus(interaction);
+        break;
+      case "recent":
+        await handleRecent(interaction);
         break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
@@ -103,6 +106,37 @@ async function handleStatus(i: ChatInputCommandInteraction) {
   }
 
   await i.editReply(formatJobStatus(job));
+}
+
+// ============================================================
+// /recent
+// ============================================================
+
+async function handleRecent(i: ChatInputCommandInteraction) {
+  await i.deferReply();
+
+  const items = await listJobs({ status: "completed", limit: 5 });
+  if (items.length === 0) {
+    await i.editReply("completed job はまだ見つかりませんでした。");
+    return;
+  }
+
+  const blocks = items.map((j) => {
+    // artifact_paths may be string or string[] in older ledger entries
+    const paths = normalizePaths(j.artifact_paths);
+    const pathLines = paths.length > 0
+      ? paths.map((p) => `  \`${p}\``).join("\n")
+      : "  なし";
+    return `**job_id:** \`${j.job_id}\`\n**type:** ${j.type}\n**artifact_paths:**\n${pathLines}`;
+  });
+
+  await i.editReply(`📋 最近の completed job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
+}
+
+function normalizePaths(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((s) => typeof s === "string");
+  if (typeof v === "string") return [v];
+  return [];
 }
 
 // ============================================================

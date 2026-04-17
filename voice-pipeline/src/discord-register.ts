@@ -44,6 +44,10 @@ const commands = [
     .addStringOption((o) =>
       o.setName("job_id").setDescription("JOB-XXXXXXXX-XXXXXX").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("recent")
+    .setDescription("直近の完了 job を確認する"),
 ].map((c) => c.toJSON());
 
 async function main() {
