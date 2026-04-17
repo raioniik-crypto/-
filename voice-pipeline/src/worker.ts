@@ -114,7 +114,7 @@ function extractNextActions(text: string): string {
 // Shared file path builder
 // ============================================================
 
-function buildFilePath(job: Job, type: string): { repoPath: string; safeTitle: string; isoDate: string } {
+function buildFilePath(job: Job, type: string, folder = "Inbox"): { repoPath: string; safeTitle: string; isoDate: string } {
   const now = new Date();
   const isoDate = now.toISOString();
   const dateStr = isoDate.slice(0, 10);
@@ -128,7 +128,7 @@ function buildFilePath(job: Job, type: string): { repoPath: string; safeTitle: s
     ? process.env.GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/"
     : "";
   const filename = `${dateStr}_${timeStr}_${type}_${safeTitle}.md`;
-  const repoPath = `${vaultBase}Inbox/${filename}`;
+  const repoPath = `${vaultBase}${folder}/${filename}`;
   return { repoPath, safeTitle, isoDate };
 }
 
@@ -139,7 +139,7 @@ function buildFilePath(job: Job, type: string): { repoPath: string; safeTitle: s
 async function executeDevBrief(
   job: Job
 ): Promise<{ artifactPaths: string[]; summary: string }> {
-  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "dev_brief");
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "dev_brief", "03_開発/Dev Briefs");
   const inst = job.instruction;
 
   const markdown = `---
@@ -195,7 +195,7 @@ ${inst}
 async function executeContentDraft(
   job: Job
 ): Promise<{ artifactPaths: string[]; summary: string }> {
-  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "content_draft");
+  const { repoPath, safeTitle, isoDate } = buildFilePath(job, "content_draft", "02_ライティング/Content Drafts");
   const inst = job.instruction;
 
   const markdown = `---
