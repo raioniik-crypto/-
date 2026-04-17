@@ -48,6 +48,13 @@ const commands = [
   new SlashCommandBuilder()
     .setName("recent")
     .setDescription("直近の完了 job を確認する"),
+
+  new SlashCommandBuilder()
+    .setName("retry")
+    .setDescription("失敗した job を再投入する")
+    .addStringOption((o) =>
+      o.setName("job_id").setDescription("再投入する job の ID").setRequired(true)
+    ),
 ].map((c) => c.toJSON());
 
 async function main() {

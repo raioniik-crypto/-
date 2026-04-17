@@ -171,6 +171,46 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /jobs/:id/retry — re-submit a failed job as a new queued job
+  if (req.method === "POST" && req.url && /^\/jobs\/[A-Za-z0-9_-]+\/retry$/.test(req.url)) {
+    if (!checkAuth(req, res)) return;
+    const jobId = req.url.slice("/jobs/".length, req.url.length - "/retry".length);
+    try {
+      const original = await findJob(jobId);
+      if (!original) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found", message: "元 job が見つかりませんでした。" }));
+        return;
+      }
+      if (original.status !== "failed") {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_retryable", message: "failed job のみ retry 可能です。" }));
+        return;
+      }
+      const { job: newJob, saved_path } = await createJob({
+        type: original.type,
+        instruction: original.instruction,
+        source: original.source ?? undefined,
+        requested_by: original.requested_by ?? undefined,
+        metadata: { ...original.metadata, retried_from: original.job_id },
+      });
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        result: "retried",
+        source_job_id: original.job_id,
+        job_id: newJob.job_id,
+        type: newJob.type,
+        status: newJob.status,
+        saved_path,
+      }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error", message: msg }));
+    }
+    return;
+  }
+
   // GET /jobs/:id — lookup a job
   if (req.method === "GET" && req.url && req.url.startsWith("/jobs/")) {
     if (!checkAuth(req, res)) return;
@@ -217,7 +257,7 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({
     error: "not_found",
-    available: ["GET /health", "POST /ingest", "POST /jobs", "GET /jobs/:id", "POST /worker/run-once"],
+    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "POST /jobs/:id/retry", "POST /worker/run-once"],
   }));
 });
 
@@ -227,6 +267,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("  POST /ingest    — multipart/form-data with 'file' field");
   console.log("  POST /jobs      — create a new job (JSON body)");
   console.log("  GET  /jobs/:id  — fetch a job by id");
+  console.log("  POST /jobs/:id/retry — re-submit a failed job");
   console.log("  POST /worker/run-once — process one queued job");
   console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);
   console.log(`  Save: GitHub Contents API → ${process.env.GITHUB_REPO || "(GITHUB_REPO not set)"}`);

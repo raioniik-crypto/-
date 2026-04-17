@@ -58,6 +58,26 @@ export async function listJobs(opts: { status?: string; limit?: number } = {}): 
   return data.items;
 }
 
+export interface RetryJobResponse {
+  result: "retried";
+  source_job_id: string;
+  job_id: string;
+  type: string;
+  status: string;
+}
+
+export async function retryJob(jobId: string): Promise<RetryJobResponse> {
+  const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST",
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+    throw new Error(data.message || data.error || `retry failed: ${res.status}`);
+  }
+  return (await res.json()) as RetryJobResponse;
+}
+
 export async function getJob(jobId: string): Promise<Job | null> {
   const res = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(jobId)}`, {
     headers: headers(),
