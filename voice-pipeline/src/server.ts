@@ -131,7 +131,7 @@ const server = http.createServer(async (req, res) => {
           job_id: j.job_id,
           status: j.status,
           type: j.type,
-          artifact_paths: j.artifact_paths,
+          artifact_paths: Array.isArray(j.artifact_paths) ? j.artifact_paths : j.artifact_paths ? [j.artifact_paths] : [],
           updated_at: j.updated_at,
         })),
       }));

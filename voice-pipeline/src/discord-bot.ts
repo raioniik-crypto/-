@@ -117,18 +117,26 @@ async function handleRecent(i: ChatInputCommandInteraction) {
 
   const items = await listJobs({ status: "completed", limit: 5 });
   if (items.length === 0) {
-    await i.editReply("完了した job はまだありません。");
+    await i.editReply("completed job はまだ見つかりませんでした。");
     return;
   }
 
-  const lines = items.map((j) => {
-    const paths = j.artifact_paths.length > 0
-      ? j.artifact_paths.map((p) => `\`${p}\``).join(", ")
-      : "なし";
-    return `• \`${j.job_id}\` [${j.type}] → ${paths}`;
+  const blocks = items.map((j) => {
+    // artifact_paths may be string or string[] in older ledger entries
+    const paths = normalizePaths(j.artifact_paths);
+    const pathLines = paths.length > 0
+      ? paths.map((p) => `  \`${p}\``).join("\n")
+      : "  なし";
+    return `**job_id:** \`${j.job_id}\`\n**type:** ${j.type}\n**artifact_paths:**\n${pathLines}`;
   });
 
-  await i.editReply(`📋 **直近の完了 job (${items.length}件)**\n${lines.join("\n")}`);
+  await i.editReply(`📋 最近の completed job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
+}
+
+function normalizePaths(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((s) => typeof s === "string");
+  if (typeof v === "string") return [v];
+  return [];
 }
 
 // ============================================================
