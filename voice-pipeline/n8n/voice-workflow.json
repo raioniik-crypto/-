@@ -1,0 +1,72 @@
+{
+  "name": "Voice to Obsidian Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-process",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "voice-process-webhook"
+    },
+    {
+      "parameters": {
+        "command": "={{ 'cd \"' + $env.VOICE_PIPELINE_PATH + '\" && npx tsx src/pipeline.ts \"' + $json.audioPath + '\"' }}"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "Run Pipeline",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the last line of stdout — pipeline outputs a JSON result line there\nconst item = $input.first().json;\n\n// continueOnFail may surface errors differently\nif (item.error && !item.stdout && !item.stderr) {\n  return [{ json: {\n    result: 'failed',\n    process_id: 'unknown',\n    error: typeof item.error === 'string' ? item.error : item.message || 'Command execution failed'\n  }}];\n}\n\nconst stdout = String(item.stdout || '').trim();\nconst stderr = String(item.stderr || '').trim();\nconst exitCode = item.exitCode ?? -1;\n\nconst lines = stdout.split('\\n').filter(l => l.trim());\nconst lastLine = lines.length > 0 ? lines[lines.length - 1] : '';\n\nlet result;\ntry {\n  result = JSON.parse(lastLine);\n} catch {\n  result = {\n    result: exitCode === 0 ? 'unknown_success' : 'failed',\n    process_id: 'unknown',\n    error: stderr.slice(0, 500) || 'Could not parse pipeline output',\n    raw_last_line: lastLine.slice(0, 200)\n  };\n}\n\nresult.exit_code = exitCode;\nreturn [{ json: result }];\n"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000003",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Run Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Run Pipeline": {
+      "main": [
+        [{ "node": "Parse Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [{ "node": "Respond", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
