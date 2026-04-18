@@ -166,7 +166,7 @@ begin
 end;
 $$;
 
-comment on function public.acquire_lock is
+comment on function public.acquire_lock(text, text, text, text, integer) is
   'scope 単位でロックを取得する。同一 job+worker なら延長、別なら失敗を返す。TTL 付き。';
 
 
@@ -200,7 +200,7 @@ begin
 end;
 $$;
 
-comment on function public.release_lock is
+comment on function public.release_lock(text, text) is
   '指定 scope + job_id のロックを解放する。解放成功なら true、該当なしなら false。';
 
 
@@ -225,7 +225,7 @@ begin
 end;
 $$;
 
-comment on function public.cleanup_expired_locks is
+comment on function public.cleanup_expired_locks() is
   '期限切れロックを一括削除する。pg_cron から 5 分毎に自動実行される。';
 
 
@@ -255,7 +255,7 @@ as $$
   where job_locks.scope = p_scope;
 $$;
 
-comment on function public.check_lock is
+comment on function public.check_lock(text) is
   'デバッグ用。指定 scope のロック状態と残り秒数を返す。';
 
 
@@ -294,18 +294,17 @@ create policy job_locks_authenticated_deny on public.job_locks
 -- 8. pg_cron スケジュール（5 分毎の期限切れクリーンアップ）
 -- =========================================================
 -- 冪等化: 既存ジョブがあれば先に削除してから再登録する。
--- Supabase では pg_cron は extensions スキーマ配下のためフルパス指定。
 
 do $$
 begin
-  perform extensions.cron.unschedule('cleanup_expired_job_locks');
+  perform cron.unschedule('cleanup_expired_job_locks');
 exception
   when others then
     null; -- ジョブが存在しない場合は無視
 end;
 $$;
 
-select extensions.cron.schedule(
+select cron.schedule(
   'cleanup_expired_job_locks',
   '*/5 * * * *',
   $$select public.cleanup_expired_locks();$$
