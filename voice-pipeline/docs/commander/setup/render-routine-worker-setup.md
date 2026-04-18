@@ -106,11 +106,16 @@ Name: isamu-commander-routine-worker
 |------|--------|
 | **Name** | `voice-pipeline-routine-worker` |
 | **Region** | 手順 2 でメモしたリージョンと同じ |
-| **Branch** | `claude/voice-obsidian-automation-EquDg` |
+| **Branch** | `main` |
 | **Root Directory** | `voice-pipeline` |
 | **Runtime** | **Docker** を選択 |
 | **Dockerfile Path** | `./Dockerfile.routine-worker` |
 | **Instance Type** | **Standard** ($25/月) |
+
+**Branch を `main` に固定する理由**:
+- Render Worker は長期運用される。作業ブランチ名は Phase ごとに変わるため、固定ブランチを参照させる必要がある
+- `main` に Phase 1 完走後のコードが merge された状態で Worker が動く前提
+- Phase 2 以降の開発中も Worker は main を参照し続けるため、開発と運用が分離される
 
 5. **まだ Create を押さない**。先に手順 4 の環境変数を設定する。
 
@@ -122,58 +127,87 @@ Name: isamu-commander-routine-worker
 
 Worker 作成画面の下部に「Environment Variables」セクションがあります。
 
+### 共通ルール
+- 既存 `voice-pipeline-worker` で使われている変数は、**同じ値をコピー**してください
+- Render Dashboard > voice-pipeline-worker > Settings > Environment で確認できます
+
+### 変数一覧
+
+| # | 変数名 | 値の取得元 | 用途 |
+|---|--------|-----------|------|
+| 1 | `SUPABASE_URL` | Supabase Dashboard > Settings > API | Supabase 接続先 |
+| 2 | `SUPABASE_ANON_KEY` | Supabase Dashboard > Settings > API | 将来用（現在未使用） |
+| 3 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard > Settings > API | job_locks 排他制御用 |
+| 4 | `ANTHROPIC_API_KEY` | 手順 0 で発行したキー | Claude Code CLI 用 |
+| 5 | `GITHUB_TOKEN` | 既存 worker からコピー | GitHub Contents API 認証 |
+| 6 | `GITHUB_REPO` | 既存 worker からコピー | 対象リポジトリ (`owner/repo` 形式) |
+| 7 | `GITHUB_BRANCH` | 既存 worker からコピー | Vault 書き込み先ブランチ (デフォルト: `main`) |
+| 8 | `GITHUB_VAULT_PATH` | 既存 worker からコピー | リポジトリ内の Vault ディレクトリ (デフォルト: 空文字) |
+
 ▶ ここから作業
 
 以下の環境変数を **1 つずつ** 追加してください：
 
-### 変数 1: SUPABASE_URL
+#### 変数 1: SUPABASE_URL
 ```
 Key:   SUPABASE_URL
 Value: （Supabase Dashboard > Settings > API の Project URL をコピペ）
 ```
+- routine-worker 専用。排他制御 (job_locks) で使用
 
-### 変数 2: SUPABASE_ANON_KEY
+#### 変数 2: SUPABASE_ANON_KEY
 ```
 Key:   SUPABASE_ANON_KEY
 Value: （Supabase Dashboard > Settings > API の anon public key をコピペ）
 ```
+- 将来用。現時点では service_role のみ使用するが、保持しておく
 
-### 変数 3: SUPABASE_SERVICE_ROLE_KEY
+#### 変数 3: SUPABASE_SERVICE_ROLE_KEY
 ```
 Key:   SUPABASE_SERVICE_ROLE_KEY
 Value: （Supabase Dashboard > Settings > API の service_role key をコピペ）
 ```
+- job_locks テーブルへのアクセスに実際に使われるキー
 
-### 変数 4: ANTHROPIC_API_KEY
+#### 変数 4: ANTHROPIC_API_KEY
 ```
 Key:   ANTHROPIC_API_KEY
 Value: （手順 0 でメモ帳に保存した sk-ant-... キーをコピペ）
 ```
+- Claude Code CLI がこのキーで Anthropic API を呼ぶ
+- 既存 worker の `ANTHROPIC_API_KEY` とは別の専用キーを使う
 
-### 変数 5: GITHUB_TOKEN
+#### 変数 5: GITHUB_TOKEN
 ```
 Key:   GITHUB_TOKEN
-Value: （既存の voice-pipeline-worker の環境変数からコピー）
+Value: （既存 voice-pipeline-worker の Environment からコピー）
 ```
-※ 既存 worker の Settings > Environment で確認できます
+- 既存 worker と同じ変数名・同じ値
+- 参照箇所: `src/github-store.ts:5`, `src/pipeline.ts:14`
 
-### 変数 6: GITHUB_REPO
+#### 変数 6: GITHUB_REPO
 ```
 Key:   GITHUB_REPO
-Value: raioniik-crypto/-
+Value: （既存 voice-pipeline-worker の Environment からコピー）
 ```
+- 既存 worker と同じ変数名・同じ値 (例: `raioniik-crypto/-`)
+- 参照箇所: `src/github-store.ts:6`, `src/pipeline.ts:15`
 
-### 変数 7: GITHUB_BRANCH
+#### 変数 7: GITHUB_BRANCH
 ```
 Key:   GITHUB_BRANCH
-Value: main
+Value: （既存 voice-pipeline-worker の Environment からコピー、未設定ならデフォルト `main`）
 ```
+- 既存 worker と同じ変数名
+- コード上のデフォルト値: `"main"` (`src/github-store.ts:7`, `src/pipeline.ts:16`)
 
-### 変数 8: GITHUB_VAULT_PATH
+#### 変数 8: GITHUB_VAULT_PATH
 ```
 Key:   GITHUB_VAULT_PATH
-Value: vault
+Value: （既存 voice-pipeline-worker の Environment からコピー、未設定ならデフォルト空文字）
 ```
+- 既存 worker と同じ変数名
+- コード上のデフォルト値: `""` (`src/pipeline.ts:17`, `src/worker.ts:89,137,344`)
 
 ◀ すべて入力したら手順 5 へ
 
@@ -232,7 +266,7 @@ Value: vault
 - ❌ 既存の `voice-pipeline-discord-bot` の設定を変更する
 - ❌ Instance Type を Starter にする（Standard 以上が必要）
 - ❌ Runtime を Docker 以外にする
-- ❌ main ブランチを指定する（作業ブランチを指定）
+- ❌ 作業ブランチ（`claude/...`）を指定する（main 固定が正）
 
 ---
 
