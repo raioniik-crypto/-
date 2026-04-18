@@ -165,6 +165,7 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       jobId: routineJob.job_id,
     });
 
+    // Timeout
     if (result.timedOut) {
       await moveRoutineJob(running, "running", "failed", {
         result_summary: null,
@@ -174,24 +175,52 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       return { result: "error", job_id: routineJob.job_id, error: "timeout" };
     }
 
-    // Extract result text
+    // Blocked (finalResult.status === "blocked")
+    if (result.finalResult?.status === "blocked") {
+      const fr = result.finalResult;
+      await moveRoutineJob(running, "running", "waiting_approval", {
+        result_summary: `[BLOCKED] ${fr.blocker_type ?? "unknown"}: ${fr.reason ?? ""}`,
+        artifact_paths: fr.partial_results ?? [],
+        error_message: null,
+      });
+      console.log(`[routine-worker] ${routineJob.job_id} → blocked (${fr.blocker_type})`);
+      return { result: "processed", job_id: routineJob.job_id };
+    }
+
+    // Failed via finalResult
+    if (result.finalResult?.status === "failed") {
+      const fr = result.finalResult;
+      await moveRoutineJob(running, "running", "failed", {
+        result_summary: `[FAILED] ${fr.error_type ?? "unknown"}`,
+        artifact_paths: [],
+        error_message: fr.error_message ?? "unknown error",
+      });
+      return { result: "error", job_id: routineJob.job_id, error: fr.error_message ?? "failed" };
+    }
+
+    // Completed via finalResult or fallback
     let resultText = "";
     let summary = "";
 
-    if (result.resultJson) {
+    if (result.finalResult?.status === "completed") {
+      const fr = result.finalResult;
+      resultText = fr.result_markdown ?? "";
+      summary = fr.summary ?? `${routineJob.type} completed`;
+    } else if (result.resultJson) {
       const rj = result.resultJson as { result?: string; subtype?: string };
       resultText = typeof rj.result === "string" ? rj.result : result.rawStdout;
       summary = rj.subtype === "success"
-        ? `${routineJob.type} completed`
-        : `${routineJob.type} finished with status: ${rj.subtype ?? "unknown"}`;
+        ? `${routineJob.type} completed (legacy: no status field)`
+        : `${routineJob.type} finished: ${rj.subtype ?? "unknown"}`;
     } else {
       resultText = result.rawStdout;
       summary = result.exitCode === 0
-        ? `${routineJob.type} completed (plain text output)`
+        ? `${routineJob.type} completed (plain text)`
         : `${routineJob.type} failed (exit ${result.exitCode})`;
     }
 
-    if (result.exitCode !== 0 && result.exitCode !== null) {
+    // Exit non-0 fallback (only when no finalResult)
+    if (result.exitCode !== 0 && result.exitCode !== null && !result.finalResult) {
       await moveRoutineJob(running, "running", "failed", {
         result_summary: summary,
         artifact_paths: [],
@@ -200,16 +229,13 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       return { result: "error", job_id: routineJob.job_id, error: summary };
     }
 
-    // Save to vault
+    // Save to vault & -> completed
     const savedPaths = await saveResultToVault(routineJob, resultText);
-
-    // -> completed
     await moveRoutineJob(running, "running", "completed", {
       result_summary: summary,
       artifact_paths: savedPaths,
       error_message: null,
     });
-
     console.log(`[routine-worker] ${routineJob.job_id} → completed`);
     return { result: "processed", job_id: routineJob.job_id };
   } catch (err: unknown) {

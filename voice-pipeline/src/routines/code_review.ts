@@ -28,6 +28,21 @@ export const codeReviewHandler: RoutineHandler = {
 - PR コメントへの直接投稿禁止
 
 【良かった点も必ず書く】
+
+【最終応答の形式（厳守）】
+
+最終応答として、以下の JSON 文字列のみを返してください。他の前後のテキストは一切禁止です。
+
+成功時:
+{"status":"completed","summary":"1〜2行の要約","result_markdown":"Vault保存用Markdownの全文","artifacts":[{"path":"vault/03_開発/Code Reviews/YYYY-MM-DD_code-review_xxx.md","summary":"要約"}],"human_check_points":["朝に確認すべきポイント1","朝に確認すべきポイント2"]}
+
+ブロッカー時（リポジトリアクセス不能、対象範囲が大きすぎる等）:
+{"status":"blocked","blocker_type":"CR-B1等","reason":"理由","context":"状況","required_action":"解除方法","partial_results":[]}
+
+失敗時:
+{"status":"failed","error_type":"エラー種別","error_message":"詳細","reproduction_steps":["手順1"]}
+
+上記3形式のいずれかのJSONのみを最終応答とすること。Markdownコードブロックで囲まない。JSON以外の前置き・後置き・解説を付けない。
 `,
 
   build_prompt(job: RoutineJob): string {

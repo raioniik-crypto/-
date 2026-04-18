@@ -62,3 +62,26 @@ export interface RoutineHandler {
   system_prompt: string;
   build_prompt(job: RoutineJob): string;
 }
+
+// ============================================================
+// Routine result parsing (Task 4 hotfix: blocked 対応)
+// ============================================================
+
+export type RoutineFinalStatus = "completed" | "blocked" | "failed";
+
+export interface RoutineFinalResult {
+  status: RoutineFinalStatus;
+  summary?: string;
+  result_markdown?: string;
+  artifacts?: Array<{ path: string; summary: string }>;
+  human_check_points?: string[];
+  blocker_type?: string;
+  reason?: string;
+  context?: string;
+  required_action?: string;
+  partial_results?: string[];
+  error_type?: string;
+  error_message?: string;
+  reproduction_steps?: string[];
+  [key: string]: unknown;
+}

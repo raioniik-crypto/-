@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { RoutineFinalResult } from "./types";
 
 export interface ClaudeCodeRunOptions {
   cwd: string;
@@ -11,6 +12,7 @@ export interface ClaudeCodeRunOptions {
 export interface ClaudeCodeRunResult {
   exitCode: number | null;
   resultJson: Record<string, unknown> | null;
+  finalResult: RoutineFinalResult | null;
   rawStdout: string;
   rawStderr: string;
   timedOut: boolean;
@@ -71,9 +73,27 @@ export async function runClaudeCode(opts: ClaudeCodeRunOptions): Promise<ClaudeC
         // stdout wasn't valid JSON — that's OK, we handle it downstream
       }
 
+      // Parse inner JSON from result field (選択肢 C 規約)
+      let finalResult: RoutineFinalResult | null = null;
+      if (resultJson && typeof resultJson.result === "string") {
+        try {
+          const inner = JSON.parse(resultJson.result as string) as Record<string, unknown>;
+          if (
+            inner &&
+            typeof inner.status === "string" &&
+            (inner.status === "completed" || inner.status === "blocked" || inner.status === "failed")
+          ) {
+            finalResult = inner as RoutineFinalResult;
+          }
+        } catch {
+          // inner JSON parse failure → finalResult stays null, fallback path
+        }
+      }
+
       resolve({
         exitCode: code,
         resultJson,
+        finalResult,
         rawStdout: cleanStdout,
         rawStderr: stripAnsi(stderr),
         timedOut,
@@ -86,6 +106,7 @@ export async function runClaudeCode(opts: ClaudeCodeRunOptions): Promise<ClaudeC
       resolve({
         exitCode: null,
         resultJson: null,
+        finalResult: null,
         rawStdout: "",
         rawStderr: err.message,
         timedOut: false,
