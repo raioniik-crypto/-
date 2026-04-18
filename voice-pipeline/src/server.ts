@@ -294,10 +294,79 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /routines — create a new routine job (Phase 1)
+  if (req.method === "POST" && req.url === "/routines") {
+    if (!checkAuth(req, res)) return;
+    try {
+      const body = await readJsonBody(req);
+      const { validateCreateRoutineInput } = await import("./routine-validators");
+      const v = validateCreateRoutineInput(body);
+      if (!v.ok) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "validation_error", field: v.field, message: v.message }));
+        return;
+      }
+      const { createRoutineJob } = await import("./routine-jobs");
+      const { job, saved_path } = await createRoutineJob(v.value, v.parsedTarget);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ job_id: job.job_id, status: job.status, type: job.type, saved_path }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = /invalid JSON|body too large/.test(msg) ? 400 : 500;
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: code === 400 ? "bad_request" : "internal_error", message: msg }));
+    }
+    return;
+  }
+
+  // GET /routines/:id — lookup a routine job
+  if (req.method === "GET" && req.url && /^\/routines\/[A-Za-z0-9_-]+$/.test(req.url)) {
+    if (!checkAuth(req, res)) return;
+    const routineJobId = req.url.slice("/routines/".length);
+    try {
+      const { findRoutineJob } = await import("./routine-jobs");
+      const job = await findRoutineJob(routineJobId);
+      if (!job) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found", job_id: routineJobId }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(job));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error", message: msg }));
+    }
+    return;
+  }
+
+  // POST /routines/:id/retry — retry a failed/blocked routine job
+  if (req.method === "POST" && req.url && /^\/routines\/[A-Za-z0-9_-]+\/retry$/.test(req.url)) {
+    if (!checkAuth(req, res)) return;
+    const routineJobId = req.url.slice("/routines/".length, req.url.length - "/retry".length);
+    try {
+      const { retryRoutineJob } = await import("./routine-jobs");
+      const result = await retryRoutineJob(routineJobId);
+      if (!result.ok) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_retryable", message: result.reason }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ result: "retried", job_id: result.job.job_id, status: result.job.status, saved_path: result.saved_path }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal_error", message: msg }));
+    }
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({
     error: "not_found",
-    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "GET /jobs/:id/artifact", "POST /jobs/:id/retry", "POST /worker/run-once"],
+    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "GET /jobs/:id/artifact", "POST /jobs/:id/retry", "POST /worker/run-once", "POST /routines", "GET /routines/:id", "POST /routines/:id/retry"],
   }));
 });
 
@@ -310,6 +379,9 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("  GET  /jobs/:id/artifact — read artifact content");
   console.log("  POST /jobs/:id/retry — re-submit a failed job");
   console.log("  POST /worker/run-once — process one queued job");
+  console.log("  POST /routines       — create a routine job");
+  console.log("  GET  /routines/:id   — fetch a routine job");
+  console.log("  POST /routines/:id/retry — retry a routine job");
   console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);
   console.log(`  Save: GitHub Contents API → ${process.env.GITHUB_REPO || "(GITHUB_REPO not set)"}`);
 });

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getFile, putFile, listDir } from "./github-store";
+import { getFile, putFile, listDir, deleteFile } from "./github-store";
 import { ROUTINE_REGISTRY } from "./routines";
 import { runClaudeCode } from "./claude_code_runner";
 import { acquireLock, releaseLock } from "./supabase_locks";
@@ -49,7 +49,6 @@ async function moveRoutineJob(
   await putFile(newPath, JSON.stringify(updated, null, 2), `routine: ${from} → ${to} ${job.job_id}`);
   // Best-effort delete old
   try {
-    const { deleteFile } = await import("./github-store");
     await deleteFile(`system/jobs/${from}/${job.job_id}.json`, `routine: cleanup ${from}/${job.job_id}`);
   } catch { /* non-fatal */ }
   return updated;
@@ -60,18 +59,12 @@ async function moveRoutineJob(
 // ============================================================
 
 function buildScope(job: RoutineJob): string {
-  const args = job.args as { repo?: string; target?: string; path?: string };
+  const args = job.args as { repo?: string; branch?: string; path?: string };
   let scope = `routine:${job.type}`;
   if (args.repo) scope += `:repo:${args.repo}`;
-  if (args.target) scope += `:${args.target}`;
+  if (args.branch) scope += `:branch:${args.branch}`;
   if (args.path) scope += `:path:${args.path}`;
   return scope;
-}
-
-function extractBranch(target?: string): string | undefined {
-  if (!target) return undefined;
-  const m = target.match(/^branch:(.+)$/);
-  return m ? m[1] : undefined;
 }
 
 // ============================================================
@@ -84,7 +77,7 @@ async function saveResultToVault(
 ): Promise<string[]> {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
-  const timeStr = now.toTimeString().slice(0, 5).replace(":", "");
+  const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
   const args = job.args as { repo?: string };
   const repoShort = (args.repo ?? "unknown").replace(/[/\\:*?"<>|]/g, "_").slice(0, 30);
 
@@ -153,7 +146,8 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
     const args = routineJob.args as { repo?: string; target?: string };
 
     if (args.repo) {
-      await shallowClone(args.repo, workspace, extractBranch(args.target));
+      const branchFromArgs = (args as { branch?: string }).branch;
+      await shallowClone(args.repo, workspace, branchFromArgs);
     }
 
     // Run Claude Code
