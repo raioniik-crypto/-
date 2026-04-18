@@ -1,0 +1,52 @@
+# =========================================================
+# voice-pipeline-routine-worker Dockerfile
+# Phase 1 タスク 3: Routine 実行用 Docker イメージ
+#
+# ベース: node:22-slim
+# 含む: Claude Code CLI (バージョン固定), git, ssh, curl
+# 実行: 非 root ユーザー (worker)
+# =========================================================
+
+FROM node:22-slim
+
+# システム依存パッケージのインストール + クリーンアップ
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git \
+      openssh-client \
+      curl \
+      ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Claude Code CLI バージョン固定インストール
+# アップデートは Phase 5 の AutoResearch で計画的に実施
+# 確認日: 2026-04-18, npm view @anthropic-ai/claude-code version → 2.1.114
+RUN npm install -g @anthropic-ai/claude-code@2.1.114
+
+# 非 root ユーザー作成
+RUN groupadd -g 10001 worker && \
+    useradd -u 10001 -g worker -m -s /bin/bash worker
+
+# アプリケーションディレクトリ
+WORKDIR /app
+
+# 依存インストール（キャッシュ効率のため先にコピー）
+COPY package.json package-lock.json ./
+RUN npm ci && npm cache clean --force
+
+# ソースコードコピー
+COPY . .
+
+# 所有権を worker ユーザーに変更
+RUN chown -R worker:worker /app
+
+# 非 root ユーザーに切り替え
+USER worker
+
+# Git 設定（Routine 内での commit 用）
+RUN git config --global user.name "Claude AI bot" && \
+    git config --global user.email "bot@isamu-commander"
+
+# エントリポイント（src/routine-worker.ts は Phase 1 タスク 4 で実装予定）
+CMD ["npx", "tsx", "src/routine-worker.ts"]
