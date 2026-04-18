@@ -124,3 +124,55 @@ export async function pollJob(
   }
   return await getJob(jobId);
 }
+
+// ============================================================
+// Routine API (Phase 1 Task 6)
+// ============================================================
+
+export interface CreateRoutineRequest {
+  type: string;
+  repo: string;
+  target: string;
+  focus?: string;
+  depth?: string;
+  source?: string;
+  requested_by?: string;
+}
+
+export async function createRoutine(payload: CreateRoutineRequest): Promise<{
+  job_id: string;
+  status: string;
+  type: string;
+  saved_path: string;
+}> {
+  const res = await fetch(`${BASE_URL}/routines`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`POST /routines ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return (await res.json()) as { job_id: string; status: string; type: string; saved_path: string };
+}
+
+export async function retryRoutine(jobId: string): Promise<
+  { ok: true; job_id: string; status: string; saved_path: string } |
+  { ok: false; reason: string }
+> {
+  const res = await fetch(`${BASE_URL}/routines/${encodeURIComponent(jobId)}/retry`, {
+    method: "POST",
+    headers: headers(),
+  });
+  if (res.status === 409 || res.status === 404) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+    return { ok: false, reason: data.message || data.error || `retry failed: ${res.status}` };
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`POST /routines/${jobId}/retry ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { job_id: string; status: string; saved_path: string };
+  return { ok: true, ...data };
+}

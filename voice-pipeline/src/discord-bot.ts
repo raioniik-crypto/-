@@ -43,6 +43,12 @@ client.on("interactionCreate", async (interaction) => {
       case "artifact":
         await handleArtifact(interaction);
         break;
+      case "routine":
+        await handleRoutine(interaction);
+        break;
+      case "retry_routine":
+        await handleRetryRoutine(interaction);
+        break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
     }
@@ -190,6 +196,87 @@ async function handleJobs(i: ChatInputCommandInteraction) {
   });
 
   await i.editReply(`📋 **${status}** の job ${items.length}件です。\n\n${blocks.join("\n\n")}`);
+}
+
+// ============================================================
+// /help
+// ============================================================
+
+// ============================================================
+// /routine
+// ============================================================
+
+async function handleRoutine(i: ChatInputCommandInteraction) {
+  const type = i.options.getString("type", true);
+  const repo = i.options.getString("repo", true);
+  const target = i.options.getString("target", true);
+  const focus = i.options.getString("focus") ?? undefined;
+  const depth = i.options.getString("depth") ?? undefined;
+
+  await i.deferReply();
+
+  try {
+    const { createRoutine } = await import("./discord-api");
+    const result = await createRoutine({
+      type, repo, target, focus, depth,
+      source: "discord",
+      requested_by: `${i.user.username} (${i.user.id})`,
+    });
+
+    await i.editReply([
+      `🚀 **Routine 起動**`,
+      `Type: \`${type}\``,
+      `Repo: \`${repo}\``,
+      `Target: \`${target}\``,
+      focus ? `Focus: \`${focus}\`` : null,
+      depth ? `Depth: \`${depth}\`` : null,
+      ``,
+      `Job ID: \`${result.job_id}\``,
+      `Status: ${result.status}`,
+      ``,
+      `朝サマリーで結果を確認できます。`,
+    ].filter((x) => x !== null).join("\n"));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await i.editReply(`❌ Routine 起動に失敗: ${msg.slice(0, 500)}`);
+  }
+}
+
+// ============================================================
+// /retry_routine
+// ============================================================
+
+async function handleRetryRoutine(i: ChatInputCommandInteraction) {
+  const jobId = i.options.getString("job_id", true);
+
+  if (!jobId.startsWith("RJOB-")) {
+    await i.reply({
+      content: `❌ \`${jobId}\` は Routine job ではありません。ID は \`RJOB-\` で始まります。\n通常 job の再試行は \`/retry\` を使ってください。`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  await i.deferReply();
+
+  try {
+    const { retryRoutine } = await import("./discord-api");
+    const result = await retryRoutine(jobId);
+
+    if (!result.ok) {
+      await i.editReply(`⚠️ 再試行できませんでした: ${result.reason}`);
+      return;
+    }
+
+    await i.editReply([
+      `🔄 **Routine 再投入**`,
+      `Job ID: \`${result.job_id}\``,
+      `Status: ${result.status}`,
+    ].join("\n"));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await i.editReply(`❌ 再試行に失敗: ${msg.slice(0, 500)}`);
+  }
 }
 
 // ============================================================

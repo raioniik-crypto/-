@@ -85,6 +85,46 @@ const commands = [
     .addStringOption((o) =>
       o.setName("job_id").setDescription("JOB-XXXXXXXX-XXXXXX").setRequired(true)
     ),
+
+  // --- Routine commands (Phase 1 Task 6) ---
+  new SlashCommandBuilder()
+    .setName("routine")
+    .setDescription("Routine を起動する（code_review 等）")
+    .addStringOption((o) =>
+      o.setName("type").setDescription("Routine 種別").setRequired(true)
+        .addChoices({ name: "code_review", value: "code_review" })
+    )
+    .addStringOption((o) =>
+      o.setName("repo").setDescription("対象リポジトリ（owner/repo 形式）").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("target").setDescription("対象（例: branch:main / path:src/ branch:main / pr:42）").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("focus").setDescription("重点観点").setRequired(false)
+        .addChoices(
+          { name: "general", value: "general" },
+          { name: "security", value: "security" },
+          { name: "performance", value: "performance" },
+          { name: "readability", value: "readability" },
+          { name: "architecture", value: "architecture" }
+        )
+    )
+    .addStringOption((o) =>
+      o.setName("depth").setDescription("レビュー深さ").setRequired(false)
+        .addChoices(
+          { name: "light", value: "light" },
+          { name: "standard", value: "standard" },
+          { name: "deep", value: "deep" }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName("retry_routine")
+    .setDescription("Routine job を再試行する（RJOB- で始まる ID）")
+    .addStringOption((o) =>
+      o.setName("job_id").setDescription("RJOB-YYYYMMDD-XXXXXX").setRequired(true)
+    ),
 ].map((c) => c.toJSON());
 
 async function main() {
