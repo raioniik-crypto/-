@@ -21,9 +21,9 @@ let busy = false;
 const ROUTINE_TYPES = Object.keys(ROUTINE_REGISTRY);
 
 async function findNextRoutineJob(): Promise<RoutineJob | null> {
-  const files = await listDir("system/jobs/queued");
+  const files = await listDir("system/routine_jobs/queued");
   for (const f of files.filter((n) => n.endsWith(".json"))) {
-    const content = await getFile(`system/jobs/queued/${f}`);
+    const content = await getFile(`system/routine_jobs/queued/${f}`);
     if (!content) continue;
     try {
       const job = JSON.parse(content) as RoutineJob;
@@ -45,11 +45,11 @@ async function moveRoutineJob(
     status: to as RoutineJob["status"],
     updated_at: new Date().toISOString(),
   };
-  const newPath = `system/jobs/${to}/${job.job_id}.json`;
+  const newPath = `system/routine_jobs/${to}/${job.job_id}.json`;
   await putFile(newPath, JSON.stringify(updated, null, 2), `routine: ${from} → ${to} ${job.job_id}`);
   // Best-effort delete old
   try {
-    await deleteFile(`system/jobs/${from}/${job.job_id}.json`, `routine: cleanup ${from}/${job.job_id}`);
+    await deleteFile(`system/routine_jobs/${from}/${job.job_id}.json`, `routine: cleanup ${from}/${job.job_id}`);
   } catch { /* non-fatal */ }
   return updated;
 }
