@@ -17,7 +17,11 @@ const INGEST_API_KEY = process.env.INGEST_API_KEY || "";
 // ============================================================
 
 function checkAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-  if (!INGEST_API_KEY) return true; // no key configured = open
+  if (!INGEST_API_KEY) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized — INGEST_API_KEY not configured" }));
+    return false; // fail-closed: no key = deny all
+  }
   const header = req.headers.authorization || "";
   if (header === `Bearer ${INGEST_API_KEY}`) return true;
   res.writeHead(401, { "Content-Type": "application/json" });
@@ -382,6 +386,11 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log("  POST /routines       — create a routine job");
   console.log("  GET  /routines/:id   — fetch a routine job");
   console.log("  POST /routines/:id/retry — retry a routine job");
-  console.log(`  Auth: ${INGEST_API_KEY ? "Bearer token required" : "OPEN (set INGEST_API_KEY to enable)"}`);
+  if (INGEST_API_KEY) {
+    console.log("  Auth: Bearer token required");
+  } else {
+    console.error("  ⚠️  WARNING: INGEST_API_KEY not set — all authenticated endpoints will deny access");
+    console.error("  ⚠️  Set INGEST_API_KEY environment variable to enable API access");
+  }
   console.log(`  Save: GitHub Contents API → ${process.env.GITHUB_REPO || "(GITHUB_REPO not set)"}`);
 });

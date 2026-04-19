@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "created": "2026-04-19",
+  "owner": "Claude 統括 + いさむ",
+  "source_of_truth": "voice-pipeline/skills/skill-manifest.json",
+  "note": "Routine 実行時に Skills を注入するため、このファイルを P2-2 の skill-loader.ts が読み込む",
+  "skills": {
+    "philosophy-dictionary": {
+      "path": "knowledge/philosophy-dictionary.md",
+      "type": "knowledge",
+      "applies_to": [],
+      "forbidden_for": ["code_review", "probe", "spec_to_design", "test_generation", "claude_implementation"],
+      "notes": "Phase 2 期間中は全 Routine で forbidden、Phase 4 以降の AutoResearch / content_draft 用"
+    },
+    "prompt-rules-v11": {
+      "path": "rules/prompt-rules-v11.md",
+      "type": "rules",
+      "applies_to": ["spec_to_design", "test_generation", "claude_implementation"],
+      "forbidden_for": ["code_review", "probe"],
+      "notes": "プロンプト作成時の品質規約、実装系 Routine 全般で使用"
+    },
+    "claude-management-v10": {
+      "path": "rules/claude-management-v10.md",
+      "type": "rules",
+      "applies_to": ["spec_to_design", "test_generation", "claude_implementation"],
+      "forbidden_for": ["code_review", "probe"],
+      "notes": "Claude 統括運用マニュアル復元版、AI 間役割分担の理解"
+    }
+  },
+  "routines": {
+    "code_review": {
+      "skills": [],
+      "notes": "Phase 1 完了時点の設計を維持、Skills 注入なし"
+    },
+    "probe": {
+      "skills": [],
+      "notes": "事実収集のみ、LLM 層を使用しない"
+    },
+    "spec_to_design": {
+      "skills": ["prompt-rules-v11", "claude-management-v10"],
+      "notes": "Phase 2 P2-5 で実装予定"
+    },
+    "test_generation": {
+      "skills": ["prompt-rules-v11", "claude-management-v10"],
+      "notes": "Phase 2 P2-7/P2-8 で実装予定"
+    },
+    "claude_implementation": {
+      "skills": ["prompt-rules-v11", "claude-management-v10"],
+      "notes": "Phase 3 で実装予定"
+    }
+  }
+}
