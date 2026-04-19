@@ -87,6 +87,7 @@ async function saveResultToVault(
 
   const folderMap: Record<string, string> = {
     code_review: "03_開発/Code Reviews",
+    spec_to_design: "03_開発/Design Specs",
   };
   const folder = folderMap[job.type] || "03_開発/Routine Results";
   const filename = `${dateStr}_${timeStr}_${job.type}_${repoShort}.md`;
