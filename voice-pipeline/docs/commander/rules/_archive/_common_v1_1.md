@@ -1,12 +1,11 @@
 ---
 type: routine-rules
 scope: _common
-version: 1.2
+version: 1.1
 created: 2026-04-18
-updated: 2026-04-19
+updated: 2026-04-18
 applies_to: 全 Routine
 priority: highest
-previous_version: 1.1（アーカイブ: _archive/_common_v1_1.md）
 ---
 
 # 全 Routine 共通ルール
@@ -46,12 +45,6 @@ previous_version: 1.1（アーカイブ: _archive/_common_v1_1.md）
 - **既存 worker（`voice-pipeline-worker`）のコードを触らない**
   - Routine は独立した `voice-pipeline-routine-worker` が処理する
   - 既存 `src/worker.ts`, `src/jobs.ts`, `src/server.ts` の改修は明示指示がない限り禁止
-
-### 原則 6: 文章で意図 → メカニズムで保証
-- ルールや意図を文章で書くだけでは不十分。それを **コード・設定・構造** で強制する仕組みを必ず併設する
-- 例: 「既存 worker が Routine job を拾わないようにする」→ ledger パスを `system/routine_jobs/` に物理分離
-- 例: 「朝サマリーを二重生成しない」→ Supabase `morning_summary_log` テーブルで冪等性を保証
-- 文章のみの制約は Phase 5 の自動改善まで放置されるリスクがある。メカニズムを先に置く
 
 ---
 
@@ -94,23 +87,6 @@ previous_version: 1.1（アーカイブ: _archive/_common_v1_1.md）
 - `voice-pipeline-discord-bot` の改修は Discord コマンド追加以外禁止
 - GitHub job ledger（`system/jobs/` 配下）の構造変更禁止
 - Routine 関連は新規 `voice-pipeline-routine-worker` 内でのみ実装
-
-**F7 対象ファイル一覧（Phase 1 確定版）**:
-- `src/worker.ts`
-- `src/pipeline.ts`
-- `src/server.ts`（既存ハンドラ部分。新規ハンドラの追記は許可）
-- `src/jobs.ts`
-- `src/github-store.ts`
-- `src/discord-bot.ts`（既存コマンドハンドラ部分。新規コマンドの追記は許可）
-- `src/discord-api.ts`（既存関数部分。新規関数の追記は許可）
-- `src/discord-register.ts`（既存コマンド定義部分。新規定義の追記は許可）
-- `src/types.ts`（既存型部分。新規型の追記は許可、既存型の改変は禁止）
-
-#### 環境変数の追加範囲
-
-- 新規 Routine 用の環境変数は、新規 routine-worker のみに設定する
-- 既存サービス（voice-pipeline-api / voice-pipeline-worker / voice-pipeline-discord-bot）への環境変数追加は F7 抵触の可能性がある
-- 例外: 既存サービスが実際に参照する必要が発生した時点で、明示的に F7 例外として承認を得てから追加する
 
 ---
 
@@ -270,35 +246,6 @@ Routine 完了前の検証（build/test/lint）は **対象プロジェクトに
 
 ---
 
-## 🔬 設計判断と実機検証の優先順位
-
-- 指示書が公式ドキュメントベースで設計判断を下しても、実機で動かない場合は **実機動作を優先** する
-- 実機検証で設計と食い違った場合、Claude Code は以下を実施：
-  1. 動作した方式を採用
-  2. 完了報告に `design_vs_reality` セクションを追加
-  3. 食い違った理由（プラン差、バージョン差、公式ドキュメントの不完全性等）の仮説を記載
-- この知見は Phase 5 の AutoResearch で設計プロセスの改善に活用
-
----
-
-## 🔍 既存インフラの事前監査ルール
-
-新規 worker やサービスを追加する際は、以下を事前に監査すること：
-- 既存 worker が新規 job type を拾わないか（ledger パス分離で保証）
-- 既存 API エンドポイントとの URL パス衝突がないか
-- 既存 Discord コマンド名との名前衝突がないか
-- 環境変数名の衝突がないか（`_env-var-audit.md` を参照）
-
----
-
-## 📦 Start Command 明示要件
-
-- 長期稼働する Background Worker は、`Dockerfile` の `CMD` に常駐フラグ（`--loop` 等）を明示すること
-- Render 等の PaaS では Start Command を空欄にすると Dockerfile CMD がそのまま使われるため、CMD に正しいフラグが含まれている必要がある
-- 一時的に Render Dashboard の Start Command でオーバーライドした場合は、必ず Dockerfile 側に恒久反映してからオーバーライドを解除すること
-
----
-
 ## 🌳 Git 運用ルール
 
 ### ブランチ命名
@@ -452,49 +399,6 @@ Routine 完了前にすべて `yes` であること：
 
 ---
 
-## 🤖 AI チーム役割分担
-
-### 役割定義
-
-| AI | 役割 | 担当 | 信頼範囲 |
-|---|---|---|---|
-| Claude（会話スレ） | 統括設計責任者 | 設計・判断・他 AI 交通整理 | 設計判断の最終決定権 |
-| Claude Code | Routine 実行者 | コード記述・Git 操作 | コード実装の自律判断 |
-| ChatGPT Thinking | 設計検証・壁打ち | 設計レビュー・哲学整合性 | 外部視点によるレビュー |
-| Gemini | リサーチ・動画解析 | 技術調査・外部情報収集 | 技術情報の一次調査 |
-| Codex (OpenAI API) | 敵対的レビュー | 完了 Routine の diff 批判 | コード品質の独立検証 |
-
-### YouTube リサーチ結果の扱い
-
-- Gemini による YouTube 動画調査の結果は「一次情報」ではなく「調査報告」として扱う
-- 具体的な数値・設定値・API 仕様は必ず公式ドキュメントまたは実機で再検証する
-- 調査結果をそのまま設計に反映しない。Claude 統括のレビューを経ること
-
-### AI チーム信頼性チェックフロー（5 段階）
-
-1. **事前調査**: Gemini / ChatGPT で技術情報・設計案を収集
-2. **設計レビュー**: Claude 統括が調査結果を統合し、設計文書に落とす
-3. **実装前検証**: Claude Code が実機で `--help` / `--version` / 最小動作テストを実行
-4. **実装中検出**: 設計と実機の乖離があれば `design_vs_reality` で報告
-5. **事後レビュー**: Codex（Phase 3 以降）が実装 diff を敵対的にレビュー
-
----
-
-## 📖 用語定義
-
-| 用語 | 意味 |
-|---|---|
-| `--loop` | CLI フラグ。`routine-worker.ts` を常駐ポーリングモードで起動する |
-| `runLoop()` | TypeScript 関数。`--loop` フラグ受信時に呼ばれる while ループ |
-| `runOnce()` | TypeScript 関数。queued job を 1 件だけ処理して終了する |
-| `RJOB-` | Routine job の ID プレフィックス。既存 `JOB-` と区別する |
-| `system/jobs/` | 既存 worker 用の job ledger パス |
-| `system/routine_jobs/` | routine-worker 用の job ledger パス。物理的に分離 |
-| `F7` | 既存インフラへの接触禁止ルール |
-| `B1〜B7` | ブロッカー検知条件の識別子 |
-
----
-
 ## 📜 変更履歴
 
 - v1.0 (2026-04-18): 初版
@@ -505,14 +409,3 @@ Routine 完了前にすべて `yes` であること：
   - `not_applicable` ステータスを追加
   - Routine 別の検証ポリシーを明記
   - 最終確認チェックリストに既存 worker 非改修項目を追加
-- v1.2 (2026-04-19): Phase 1 完走後の改訂（10 項目追加）
-  - 環境変数追加範囲の明示（F7 補強）
-  - 設計 vs 実機の優先順位ルール
-  - 既存インフラ事前監査ルール
-  - Start Command 明示要件
-  - F7 対象リスト明文化
-  - 「文章で意図→メカニズムで保証」原則（原則 6）
-  - AI チーム役割分担（Claude 統括 / Claude Code / ChatGPT Thinking / Gemini / Codex）
-  - YouTube リサーチ結果の扱い規約
-  - AI チーム信頼性チェックフロー 5 段階
-  - /loop と runLoop() 用語混同防止
