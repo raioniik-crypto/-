@@ -48,5 +48,6 @@ USER worker
 RUN git config --global user.name "Claude AI bot" && \
     git config --global user.email "bot@isamu-commander"
 
-# エントリポイント（src/routine-worker.ts は Phase 1 タスク 4 で実装予定）
-CMD ["npx", "tsx", "src/routine-worker.ts"]
+# --loop flag required for continuous polling mode on Render Worker
+# Without --loop, the process exits after 1 iteration and Render detects crash loop
+CMD ["npx", "tsx", "src/routine-worker.ts", "--loop"]
