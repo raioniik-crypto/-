@@ -17,7 +17,7 @@ export function generateRoutineJobId(): string {
 }
 
 function jobPath(status: string, jobId: string): string {
-  return `system/jobs/${status}/${jobId}.json`;
+  return `system/routine_jobs/${status}/${jobId}.json`;
 }
 
 export async function createRoutineJob(
