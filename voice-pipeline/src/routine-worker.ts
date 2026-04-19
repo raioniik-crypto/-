@@ -250,6 +250,85 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
 }
 
 // ============================================================
+// Morning summary scheduler
+// ============================================================
+
+let lastSummaryDate = "";
+
+async function maybeGenerateMorningSummary(): Promise<void> {
+  const debugMode = process.env.MORNING_SUMMARY_DEBUG === "1";
+  const now = new Date();
+  const jstMs = now.getTime() + 9 * 60 * 60 * 1000;
+  const jstNow = new Date(jstMs);
+  const jstHour = jstNow.getUTCHours();
+  const jstMinute = jstNow.getUTCMinutes();
+
+  if (!debugMode && (jstHour !== 6 || jstMinute >= 5)) return;
+
+  const dateStr = jstNow.toISOString().slice(0, 10);
+  if (lastSummaryDate === dateStr) return;
+
+  // Supabase dedup check
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && serviceKey) {
+    try {
+      const checkRes = await fetch(
+        `${supabaseUrl}/rest/v1/morning_summary_log?date=eq.${dateStr}&select=date`,
+        {
+          headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      if (checkRes.ok) {
+        const rows = await checkRes.json() as Array<{ date: string }>;
+        if (rows.length > 0) { lastSummaryDate = dateStr; return; }
+      }
+    } catch { /* continue even if check fails */ }
+  }
+
+  console.log(`[routine-worker] Generating morning summary for ${dateStr}`);
+
+  try {
+    const { generateAndDeliverMorningSummary } = await import("./morning_summary");
+    await generateAndDeliverMorningSummary(dateStr);
+    lastSummaryDate = dateStr;
+
+    // Log to Supabase
+    if (supabaseUrl && serviceKey) {
+      await fetch(`${supabaseUrl}/rest/v1/morning_summary_log`, {
+        method: "POST",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ date: dateStr, worker_id: WORKER_ID, status: "completed" }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("[routine-worker] Morning summary failed:", err);
+    // Log failure to Supabase
+    if (supabaseUrl && serviceKey) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await fetch(`${supabaseUrl}/rest/v1/morning_summary_log`, {
+        method: "POST",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ date: dateStr, worker_id: WORKER_ID, status: "failed", error_message: msg.slice(0, 500) }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
+    }
+  }
+}
+
+// ============================================================
 // Loop mode
 // ============================================================
 
@@ -274,6 +353,11 @@ export async function runLoop(): Promise<void> {
       console.error(`[routine-worker:loop] Unexpected: ${msg}`);
     }
     busy = false;
+
+    // Morning summary check
+    try { await maybeGenerateMorningSummary(); } catch (e) {
+      console.error("[routine-worker] Morning summary check error:", e);
+    }
 
     if (stopping) break;
     const rounds = Math.ceil(POLL_MS / 1000);
