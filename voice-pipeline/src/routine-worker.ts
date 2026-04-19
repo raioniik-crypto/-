@@ -150,6 +150,19 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       await shallowClone(args.repo, workspace, branchFromArgs);
     }
 
+    // Probe: direct execution (no Claude Code CLI needed)
+    if (routineJob.type === "probe") {
+      const { executeProbe } = await import("./routines/probe");
+      const probeResult = await executeProbe(routineJob);
+      await moveRoutineJob(running, "running", "completed", {
+        result_summary: probeResult.summary,
+        artifact_paths: probeResult.artifactPaths,
+        error_message: null,
+      });
+      console.log(`[routine-worker] ${routineJob.job_id} → completed (probe)`);
+      return { result: "processed", job_id: routineJob.job_id };
+    }
+
     // Run Claude Code
     const result = await runClaudeCode({
       cwd: args.repo ? workspace : process.cwd(),
