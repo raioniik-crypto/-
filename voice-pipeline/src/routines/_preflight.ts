@@ -75,6 +75,17 @@ export async function probeTokenPermission(
 
   if (!result.authenticated_user) return result;
 
+  // Owner 自己判定: 個人 repo オーナーの場合、Collaborators API は
+  // 不正確な "none" を返すため、自動的に admin 扱いとする
+  const [owner] = repo.split("/");
+  if (result.authenticated_user === owner) {
+    result.permission_level = "admin (owner)";
+    result.can_read = true;
+    result.can_write = true;
+    result.can_create_pr = true;
+    return result;
+  }
+
   const { status: permStatus, data: permData } = await githubFetch(
     `/repos/${repo}/collaborators/${encodeURIComponent(result.authenticated_user)}/permission`,
     { allowNotFound: true }
