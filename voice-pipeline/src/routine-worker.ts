@@ -87,6 +87,7 @@ async function saveResultToVault(
 
   const folderMap: Record<string, string> = {
     code_review: "03_開発/Code Reviews",
+    spec_to_design: "03_開発/Design Specs",
   };
   const folder = folderMap[job.type] || "03_開発/Routine Results";
   const filename = `${dateStr}_${timeStr}_${job.type}_${repoShort}.md`;
@@ -163,10 +164,23 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       return { result: "processed", job_id: routineJob.job_id };
     }
 
+    // Load skills for this routine type
+    let systemPrompt = handler.system_prompt;
+    try {
+      const { loadSkillsForRoutine } = await import("./skill-loader");
+      const skills = loadSkillsForRoutine(routineJob.type);
+      if (skills.appliedSkillIds.length > 0) {
+        systemPrompt += skills.combinedPrompt;
+        console.log(`[routine-worker] Skills loaded: ${skills.appliedSkillIds.join(", ")}`);
+      }
+    } catch (err: unknown) {
+      console.warn(`[routine-worker] Skill loading failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+    }
+
     // Run Claude Code
     const result = await runClaudeCode({
       cwd: args.repo ? workspace : process.cwd(),
-      systemPrompt: handler.system_prompt,
+      systemPrompt,
       userPrompt: handler.build_prompt(routineJob),
       maxDurationMs: handler.max_duration_ms,
       jobId: routineJob.job_id,

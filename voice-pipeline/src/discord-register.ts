@@ -94,7 +94,8 @@ const commands = [
       o.setName("type").setDescription("Routine 種別").setRequired(true)
         .addChoices(
           { name: "code_review", value: "code_review" },
-          { name: "probe", value: "probe" }
+          { name: "probe", value: "probe" },
+          { name: "spec_to_design", value: "spec_to_design" }
         )
     )
     .addStringOption((o) =>
