@@ -92,7 +92,10 @@ const commands = [
     .setDescription("Routine を起動する（code_review 等）")
     .addStringOption((o) =>
       o.setName("type").setDescription("Routine 種別").setRequired(true)
-        .addChoices({ name: "code_review", value: "code_review" })
+        .addChoices(
+          { name: "code_review", value: "code_review" },
+          { name: "probe", value: "probe" }
+        )
     )
     .addStringOption((o) =>
       o.setName("repo").setDescription("対象リポジトリ（owner/repo 形式）").setRequired(true)

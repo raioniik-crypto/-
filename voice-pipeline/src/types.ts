@@ -36,7 +36,7 @@ export interface CreateJobInput {
 // v3 Routine system (Phase 1 Task 4)
 // ============================================================
 
-export type RoutineType = "code_review";
+export type RoutineType = "code_review" | "probe";
 
 export interface RoutineJob {
   job_id: string;
@@ -84,4 +84,36 @@ export interface RoutineFinalResult {
   error_message?: string;
   reproduction_steps?: string[];
   [key: string]: unknown;
+}
+
+// ============================================================
+// P2-0a: Repo Capability Probe
+// ============================================================
+
+export interface RepoCapabilityReport {
+  repo: string;
+  default_branch: string;
+  is_private: boolean;
+  probed_at: string;
+  branch_protection: {
+    enabled: boolean;
+    details: Record<string, unknown> | null;
+  };
+  github_token: {
+    authenticated_user: string | null;
+    can_read: boolean;
+    can_write: boolean;
+    can_create_pr: boolean;
+    permission_level: string;
+  };
+  project: {
+    package_manager: "npm" | "yarn" | "pnpm" | "poetry" | "cargo" | "go_mod" | "unknown";
+    workspace_root: string;
+    is_monorepo: boolean;
+    test_command: string | null;
+    test_command_note: string;
+  };
+  forbidden_paths: string[];
+  warnings: string[];
+  checks_skipped: string[];
 }
