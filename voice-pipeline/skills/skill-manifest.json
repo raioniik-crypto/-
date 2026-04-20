@@ -25,6 +25,13 @@
       "applies_to": ["spec_to_design", "test_generation", "claude_implementation"],
       "forbidden_for": ["code_review", "probe"],
       "notes": "Claude 統括運用マニュアル復元版、AI 間役割分担の理解"
+    },
+    "capture-response-v1": {
+      "path": "reporting_rules/capture-response-v1.md",
+      "type": "reporting_rules",
+      "applies_to": ["inbox_triage"],
+      "forbidden_for": ["code_review", "probe", "spec_to_design", "test_generation", "claude_implementation"],
+      "notes": "inbox_triage 専用の応答フォーマット規約。次アクション候補 3 件を返す"
     }
   },
   "routines": {
@@ -47,6 +54,10 @@
     "claude_implementation": {
       "skills": ["prompt-rules-v11", "claude-management-v10"],
       "notes": "Phase 3 で実装予定"
+    },
+    "inbox_triage": {
+      "skills": ["capture-response-v1"],
+      "notes": "設計書 v0.2 Task 2 以降で実装予定。Inbox テキストから次アクション候補を返す"
     }
   }
 }
