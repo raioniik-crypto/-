@@ -132,6 +132,16 @@ const commands = [
     .addStringOption((o) =>
       o.setName("job_id").setDescription("RJOB-YYYYMMDD-XXXXXX").setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName("capture")
+    .setDescription("テキストを Inbox に保存し、AI が次アクション候補を返す")
+    .addStringOption((o) =>
+      o.setName("text").setDescription("キャプチャするテキスト").setRequired(true)
+    )
+    .addStringOption((o) =>
+      o.setName("tags").setDescription("タグ（カンマ区切り）").setRequired(false)
+    ),
 ].map((c) => c.toJSON());
 
 async function main() {
