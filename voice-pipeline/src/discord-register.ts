@@ -121,6 +121,9 @@ const commands = [
           { name: "standard", value: "standard" },
           { name: "deep", value: "deep" }
         )
+    )
+    .addStringOption((o) =>
+      o.setName("spec").setDescription("仕様本文（spec_to_design 用）").setRequired(false)
     ),
 
   new SlashCommandBuilder()
