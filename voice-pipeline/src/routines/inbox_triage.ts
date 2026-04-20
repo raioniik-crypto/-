@@ -112,25 +112,64 @@ ${(args.text ?? job.instruction).slice(0, 200)}
   // 2. Update capture md if inbox_path is available
   if (args.inbox_path) {
     try {
-      const existing = await getFile(args.inbox_path);
-      if (existing) {
-        let updated = existing;
+      // Need sha for GitHub Contents API update of existing file
+      const token = process.env.GITHUB_TOKEN;
+      const repo = process.env.GITHUB_REPO;
+      const branch = process.env.GITHUB_BRANCH || "main";
 
-        // Update frontmatter fields
-        updated = updated.replace(/status:\s*"unprocessed"/, `status: "triaged"`);
-        updated = updated.replace(/triaged_at:\s*null/, `triaged_at: "${isoNow}"`);
-        updated = updated.replace(
-          /ai_candidates:\s*null/,
-          `ai_candidates: [${candidates.map(c => `"${c.replace(/"/g, '\\"')}"`).join(", ")}]`
+      if (token && repo) {
+        const encodedPath = args.inbox_path.split("/").map(s => encodeURIComponent(s)).join("/");
+        const metaRes = await fetch(
+          `https://api.github.com/repos/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`,
+          { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json" } }
         );
 
-        // Replace placeholder with actual candidates
-        updated = updated.replace(
-          /## AI 次アクション候補\n\n（処理完了後に追記されます）/,
-          `## AI 次アクション候補\n\n${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
-        );
+        if (metaRes.ok) {
+          const meta = (await metaRes.json()) as { content?: string; sha?: string; encoding?: string };
+          if (meta.content && meta.sha) {
+            let existing = Buffer.from(meta.content, "base64").toString("utf-8");
 
-        await putFile(args.inbox_path, updated, `triage: update ${job.job_id}`);
+            // Update frontmatter fields
+            existing = existing.replace(/status:\s*"unprocessed"/, `status: "triaged"`);
+            existing = existing.replace(/triaged_at:\s*null/, `triaged_at: "${isoNow}"`);
+            existing = existing.replace(
+              /ai_candidates:\s*null/,
+              `ai_candidates: [${candidates.map(c => `"${c.replace(/"/g, '\\"')}"`).join(", ")}]`
+            );
+
+            // Replace placeholder with actual candidates
+            existing = existing.replace(
+              /## AI 次アクション候補\n\n（処理完了後に追記されます）/,
+              `## AI 次アクション候補\n\n${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+            );
+
+            // PUT with sha for update
+            const updateRes = await fetch(
+              `https://api.github.com/repos/${repo}/contents/${encodedPath}`,
+              {
+                method: "PUT",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  Accept: "application/vnd.github.v3+json",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  message: `triage: update ${job.job_id}`,
+                  content: Buffer.from(existing, "utf-8").toString("base64"),
+                  sha: meta.sha,
+                  branch,
+                }),
+              }
+            );
+
+            if (!updateRes.ok) {
+              const errBody = await updateRes.text();
+              console.warn(`[inbox_triage] Capture md update failed ${updateRes.status}: ${errBody.slice(0, 200)}`);
+            } else {
+              console.log(`[inbox_triage] Capture md updated: ${args.inbox_path}`);
+            }
+          }
+        }
       }
     } catch (err) {
       console.warn(`[inbox_triage] Failed to update capture md: ${err instanceof Error ? err.message : err}`);
