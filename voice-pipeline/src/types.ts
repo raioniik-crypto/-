@@ -36,7 +36,7 @@ export interface CreateJobInput {
 // v3 Routine system (Phase 1 Task 4)
 // ============================================================
 
-export type RoutineType = "code_review" | "probe" | "spec_to_design";
+export type RoutineType = "code_review" | "probe" | "spec_to_design" | "inbox_triage";
 
 export interface RoutineJob {
   job_id: string;
