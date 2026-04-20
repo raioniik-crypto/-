@@ -34,6 +34,7 @@ export interface CreateRoutineJobInput {
   target: string;
   focus?: string;
   depth?: string;
+  spec?: string;
   language_hints?: string;
   source?: string;
   requested_by?: string;
@@ -81,6 +82,7 @@ export function validateCreateRoutineInput(input: unknown): RoutineValidationRes
     target: o.target,
     focus: o.focus as string | undefined,
     depth: o.depth as string | undefined,
+    spec: typeof o.spec === "string" ? o.spec : undefined,
     language_hints: typeof o.language_hints === "string" ? o.language_hints : undefined,
     source: typeof o.source === "string" ? o.source : undefined,
     requested_by: typeof o.requested_by === "string" ? o.requested_by : undefined,

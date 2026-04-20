@@ -212,13 +212,14 @@ async function handleRoutine(i: ChatInputCommandInteraction) {
   const target = i.options.getString("target", true);
   const focus = i.options.getString("focus") ?? undefined;
   const depth = i.options.getString("depth") ?? undefined;
+  const spec = i.options.getString("spec") ?? undefined;
 
   await i.deferReply();
 
   try {
     const { createRoutine } = await import("./discord-api");
     const result = await createRoutine({
-      type, repo, target, focus, depth,
+      type, repo, target, focus, depth, spec,
       source: "discord",
       requested_by: `${i.user.username} (${i.user.id})`,
     });

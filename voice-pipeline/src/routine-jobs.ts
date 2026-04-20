@@ -28,12 +28,13 @@ export async function createRoutineJob(
   const job: RoutineJob = {
     job_id: generateRoutineJobId(),
     type: input.type,
-    instruction: `${input.type}: ${input.repo} ${input.target}`,
+    instruction: input.spec || `${input.type}: ${input.repo} ${input.target}`,
     args: {
       repo: input.repo,
       target: input.target,
       focus: input.focus ?? "general",
       depth: input.depth ?? "standard",
+      spec: input.spec,
       language_hints: input.language_hints,
       path: parsedTarget.path,
       branch: parsedTarget.branch,

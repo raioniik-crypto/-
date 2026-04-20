@@ -135,6 +135,7 @@ export interface CreateRoutineRequest {
   target: string;
   focus?: string;
   depth?: string;
+  spec?: string;
   source?: string;
   requested_by?: string;
 }
