@@ -35,6 +35,8 @@ export async function createRoutineJob(
       focus: input.focus ?? "general",
       depth: input.depth ?? "standard",
       spec: input.spec,
+      text: input.text,
+      inbox_path: input.inbox_path,
       language_hints: input.language_hints,
       path: parsedTarget.path,
       branch: parsedTarget.branch,

@@ -35,6 +35,8 @@ export interface CreateRoutineJobInput {
   focus?: string;
   depth?: string;
   spec?: string;
+  text?: string;
+  inbox_path?: string;
   language_hints?: string;
   source?: string;
   requested_by?: string;

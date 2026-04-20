@@ -394,26 +394,8 @@ const server = http.createServer(async (req, res) => {
       const inboxPath = `${vaultBase}05_デイリー/Inbox/${dateStr}_${timeStr}_capture.md`;
 
       const safeTitle = text.replace(/[\r\n]+/g, " ").slice(0, 40);
-      const frontmatter = [
-        "---",
-        `type: inbox-capture`,
-        `created: "${isoDate}"`,
-        `source: "${source}"`,
-        `discord_user: "${requestedBy}"`,
-        `tags: [${tags.map((t: string) => `"${t}"`).join(", ")}]`,
-        `status: "unprocessed"`,
-        `routine_hook: "inbox_triage"`,
-        `triaged_at: null`,
-        `ai_candidates: null`,
-        "---",
-      ].join("\n");
 
-      const markdown = `${frontmatter}\n\n# Capture: ${safeTitle}\n\n${text}\n\n## AI 次アクション候補\n\n（処理完了後に追記されます）\n`;
-
-      const { putFile } = await import("./github-store");
-      await putFile(inboxPath, markdown, `capture: ${safeTitle}`);
-
-      // Create inbox_triage job
+      // Create inbox_triage job first to get job_id for frontmatter
       const { createRoutineJob } = await import("./routine-jobs");
       const { parseTarget } = await import("./routine-validators");
       const parsedTarget = parseTarget("branch:main");
@@ -423,11 +405,33 @@ const server = http.createServer(async (req, res) => {
           repo: process.env.GITHUB_REPO || "unknown",
           target: "branch:main",
           spec: text,
+          text,
+          inbox_path: inboxPath,
           source,
           requested_by: requestedBy,
         },
         parsedTarget
       );
+
+      // Write Inbox md with job_id in routine_hook
+      const frontmatter = [
+        "---",
+        `type: inbox-capture`,
+        `created: "${isoDate}"`,
+        `source: "${source}"`,
+        `discord_user: "${requestedBy}"`,
+        `tags: [${tags.map((t: string) => `"${t}"`).join(", ")}]`,
+        `status: "unprocessed"`,
+        `routine_hook: "${job.job_id}"`,
+        `triaged_at: null`,
+        `ai_candidates: null`,
+        "---",
+      ].join("\n");
+
+      const markdown = `${frontmatter}\n\n# Capture: ${safeTitle}\n\n${text}\n\n## AI 次アクション候補\n\n（処理完了後に追記されます）\n`;
+
+      const { putFile } = await import("./github-store");
+      await putFile(inboxPath, markdown, `capture: ${safeTitle}`);
 
       res.writeHead(201, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ job_id: job.job_id, inbox_path: inboxPath }));
