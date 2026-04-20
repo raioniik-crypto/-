@@ -367,10 +367,87 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /capture — create Inbox md + inbox_triage job
+  if (req.method === "POST" && req.url === "/capture") {
+    if (!checkAuth(req, res)) return;
+    try {
+      const body = await readJsonBody(req) as Record<string, unknown> | null;
+      if (!body || typeof body.text !== "string" || body.text.trim() === "") {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "validation_error", message: "text is required" }));
+        return;
+      }
+
+      const text = body.text as string;
+      const tags = typeof body.tags === "string" ? body.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : [];
+      const source = typeof body.source === "string" ? body.source : "api";
+      const requestedBy = typeof body.requested_by === "string" ? body.requested_by : "unknown";
+
+      const now = new Date();
+      const isoDate = now.toISOString();
+      const dateStr = isoDate.slice(0, 10);
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
+
+      const vaultBase = process.env.GITHUB_VAULT_PATH
+        ? process.env.GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/"
+        : "";
+      const inboxPath = `${vaultBase}05_デイリー/Inbox/${dateStr}_${timeStr}_capture.md`;
+
+      const safeTitle = text.replace(/[\r\n]+/g, " ").slice(0, 40);
+
+      // Create inbox_triage job first to get job_id for frontmatter
+      const { createRoutineJob } = await import("./routine-jobs");
+      const { parseTarget } = await import("./routine-validators");
+      const parsedTarget = parseTarget("branch:main");
+      const { job } = await createRoutineJob(
+        {
+          type: "inbox_triage" as any,
+          repo: process.env.GITHUB_REPO || "unknown",
+          target: "branch:main",
+          spec: text,
+          text,
+          inbox_path: inboxPath,
+          source,
+          requested_by: requestedBy,
+        },
+        parsedTarget
+      );
+
+      // Write Inbox md with job_id in routine_hook
+      const frontmatter = [
+        "---",
+        `type: inbox-capture`,
+        `created: "${isoDate}"`,
+        `source: "${source}"`,
+        `discord_user: "${requestedBy}"`,
+        `tags: [${tags.map((t: string) => `"${t}"`).join(", ")}]`,
+        `status: "unprocessed"`,
+        `routine_hook: "${job.job_id}"`,
+        `triaged_at: null`,
+        `ai_candidates: null`,
+        "---",
+      ].join("\n");
+
+      const markdown = `${frontmatter}\n\n# Capture: ${safeTitle}\n\n${text}\n\n## AI 次アクション候補\n\n（処理完了後に追記されます）\n`;
+
+      const { putFile } = await import("./github-store");
+      await putFile(inboxPath, markdown, `capture: ${safeTitle}`);
+
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ job_id: job.job_id, inbox_path: inboxPath }));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const code = /invalid JSON|body too large/.test(msg) ? 400 : 500;
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: code === 400 ? "bad_request" : "internal_error", message: msg }));
+    }
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({
     error: "not_found",
-    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "GET /jobs/:id/artifact", "POST /jobs/:id/retry", "POST /worker/run-once", "POST /routines", "GET /routines/:id", "POST /routines/:id/retry"],
+    available: ["GET /health", "POST /ingest", "GET /jobs", "POST /jobs", "GET /jobs/:id", "GET /jobs/:id/artifact", "POST /jobs/:id/retry", "POST /worker/run-once", "POST /routines", "GET /routines/:id", "POST /routines/:id/retry", "POST /capture"],
   }));
 });
 

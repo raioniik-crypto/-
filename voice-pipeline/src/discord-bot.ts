@@ -49,6 +49,9 @@ client.on("interactionCreate", async (interaction) => {
       case "retry_routine":
         await handleRetryRoutine(interaction);
         break;
+      case "capture":
+        await handleCapture(interaction);
+        break;
       default:
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
     }
@@ -277,6 +280,53 @@ async function handleRetryRoutine(i: ChatInputCommandInteraction) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     await i.editReply(`❌ 再試行に失敗: ${msg.slice(0, 500)}`);
+  }
+}
+
+// ============================================================
+// /capture
+// ============================================================
+
+async function handleCapture(i: ChatInputCommandInteraction) {
+  const text = i.options.getString("text", true);
+  const tags = i.options.getString("tags") ?? undefined;
+
+  await i.reply({ content: "📥 Captured. 次アクション生成中...", ephemeral: true });
+
+  try {
+    const res = await fetch(`${process.env.VOICE_PIPELINE_API_BASE_URL || ""}/capture`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.INGEST_API_KEY ? { Authorization: `Bearer ${process.env.INGEST_API_KEY}` } : {}),
+      },
+      body: JSON.stringify({
+        text,
+        tags,
+        source: "discord",
+        requested_by: `${i.user.username} (${i.user.id})`,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      await i.followUp({ content: `❌ Capture 失敗: ${body.slice(0, 200)}`, ephemeral: true });
+      return;
+    }
+
+    const data = (await res.json()) as { job_id: string; inbox_path: string };
+    await i.followUp({
+      content: [
+        `✅ **Inbox に保存しました**`,
+        `Job ID: \`${data.job_id}\``,
+        `保存先: \`${data.inbox_path}\``,
+        `次アクション候補は処理完了後に確認できます。`,
+      ].join("\n"),
+      ephemeral: true,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await i.followUp({ content: `❌ エラー: ${msg.slice(0, 300)}`, ephemeral: true });
   }
 }
 
