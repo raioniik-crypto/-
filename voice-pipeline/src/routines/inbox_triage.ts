@@ -48,3 +48,95 @@ ${inputText}
 上記テキストを読み、system_prompt の出力規約に従って JSON を返してください。`;
   },
 };
+
+// Post-processing: extract candidates, update capture md, create artifact
+export async function postProcessInboxTriage(
+  job: RoutineJob,
+  cliResult: { finalResult: { status?: string; candidates?: string[]; source_text?: string; notes?: string | null } | null; resultJson: Record<string, unknown> | null; rawStdout: string }
+): Promise<{ candidates: string[]; artifactPaths: string[]; summary: string }> {
+  const { putFile, getFile } = await import("../github-store");
+
+  // Extract candidates from finalResult or raw output
+  let candidates: string[] = [];
+
+  if (cliResult.finalResult?.status === "completed" && Array.isArray(cliResult.finalResult.candidates)) {
+    candidates = cliResult.finalResult.candidates.filter((c): c is string => typeof c === "string");
+  }
+
+  // Fallback: try to parse numbered list from raw output
+  if (candidates.length === 0 && cliResult.rawStdout) {
+    const lines = cliResult.rawStdout.split("\n");
+    for (const line of lines) {
+      const m = line.match(/^\d+\.\s+(.+)$/);
+      if (m && m[1].trim()) candidates.push(m[1].trim());
+    }
+  }
+
+  if (candidates.length < 3) {
+    throw new Error(`inbox_triage returned ${candidates.length} candidates (expected 3)`);
+  }
+  candidates = candidates.slice(0, 3);
+
+  const args = job.args as { inbox_path?: string; text?: string };
+  const now = new Date();
+  const isoNow = now.toISOString();
+
+  // 1. Save artifact md
+  const vaultBase = process.env.GITHUB_VAULT_PATH
+    ? process.env.GITHUB_VAULT_PATH.replace(/\/+$/, "") + "/"
+    : "";
+  const dateStr = isoNow.slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
+  const artifactPath = `${vaultBase}Inbox/${dateStr}_${timeStr}_triage_${job.job_id}.md`;
+
+  const artifactMd = `---
+type: inbox-triage-result
+job_id: "${job.job_id}"
+created: "${isoNow}"
+source_capture: "${args.inbox_path ?? "unknown"}"
+---
+
+# Triage 結果: ${job.job_id}
+
+## 次アクション候補
+
+${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+## 元テキスト（冒頭）
+
+${(args.text ?? job.instruction).slice(0, 200)}
+`;
+
+  await putFile(artifactPath, artifactMd, `triage: ${job.job_id}`);
+
+  // 2. Update capture md if inbox_path is available
+  if (args.inbox_path) {
+    try {
+      const existing = await getFile(args.inbox_path);
+      if (existing) {
+        let updated = existing;
+
+        // Update frontmatter fields
+        updated = updated.replace(/status:\s*"unprocessed"/, `status: "triaged"`);
+        updated = updated.replace(/triaged_at:\s*null/, `triaged_at: "${isoNow}"`);
+        updated = updated.replace(
+          /ai_candidates:\s*null/,
+          `ai_candidates: [${candidates.map(c => `"${c.replace(/"/g, '\\"')}"`).join(", ")}]`
+        );
+
+        // Replace placeholder with actual candidates
+        updated = updated.replace(
+          /## AI 次アクション候補\n\n（処理完了後に追記されます）/,
+          `## AI 次アクション候補\n\n${candidates.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+        );
+
+        await putFile(args.inbox_path, updated, `triage: update ${job.job_id}`);
+      }
+    } catch (err) {
+      console.warn(`[inbox_triage] Failed to update capture md: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  const summary = `候補: ${candidates.map((c, i) => `${i + 1}. ${c}`).join(" / ")}`;
+  return { candidates, artifactPaths: [artifactPath], summary };
+}

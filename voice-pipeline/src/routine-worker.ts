@@ -251,6 +251,25 @@ export async function runOnce(): Promise<{ result: "processed" | "no_job" | "err
       return { result: "error", job_id: routineJob.job_id, error: summary };
     }
 
+    // inbox_triage post-processing: extract candidates, update capture md, create artifact
+    if (routineJob.type === "inbox_triage") {
+      try {
+        const { postProcessInboxTriage } = await import("./routines/inbox_triage");
+        const triageResult = await postProcessInboxTriage(routineJob, result);
+        await moveRoutineJob(running, "running", "completed", {
+          result_summary: triageResult.summary,
+          artifact_paths: triageResult.artifactPaths,
+          error_message: null,
+        });
+        console.log(`[routine-worker] ${routineJob.job_id} → completed (inbox_triage: ${triageResult.candidates.length} candidates)`);
+        return { result: "processed", job_id: routineJob.job_id };
+      } catch (triageErr: unknown) {
+        const triageMsg = triageErr instanceof Error ? triageErr.message : String(triageErr);
+        console.error(`[routine-worker] inbox_triage post-processing failed: ${triageMsg}`);
+        // Fall through to generic save
+      }
+    }
+
     // Save to vault & -> completed
     const savedPaths = await saveResultToVault(routineJob, resultText);
     await moveRoutineJob(running, "running", "completed", {
