@@ -141,6 +141,27 @@ const commands = [
     )
     .addStringOption((o) =>
       o.setName("tags").setDescription("タグ（カンマ区切り）").setRequired(false)
+   ),
+
+   new SlashCommandBuilder()
+    .setName("analyze")
+    .setDescription("source_text を structure-note-executor で解析する")
+    .addStringOption((option) =>
+      option
+        .setName("template_type")
+        .setDescription("生成テンプレート種別")
+        .setRequired(true)
+        .addChoices(
+          { name: "思想ノート (structure_note)", value: "structure_note" },
+          { name: "レポート (report_draft)", value: "report_draft" },
+          { name: "JSON出力 (json)", value: "json" },
+        ),
+    )
+    .addAttachmentOption((option) =>
+      option
+        .setName("attachment")
+        .setDescription("(任意) .txt または .md ファイル、1 MB 以下")
+        .setRequired(false),
     ),
 ].map((c) => c.toJSON());
 
