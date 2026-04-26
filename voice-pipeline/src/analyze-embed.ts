@@ -1,5 +1,5 @@
 import { EmbedBuilder, Colors } from "discord.js";
-import type { ExecuteResponse, QualityCheck, ExecutorErrorKind } from "./analyze-executor";
+import type { ExecuteResponse, GenerationMeta, QualityCheck, ExecutorErrorKind } from "./analyze-executor";
 
 const GITHUB_VAULT_BASE = "https://github.com/raioniik-crypto/my-vault/blob/main";
 
@@ -52,6 +52,16 @@ function formatWeakPoints(weak: string[] | undefined): string {
   return weak.join(", ");
 }
 
+function formatGenerationMeta(meta: GenerationMeta): string {
+  const totals = meta.quality_totals.length > 0
+    ? meta.quality_totals.join(" → ")
+    : String(meta.selected_total);
+  const adopted = meta.selected_attempt_index === 0
+    ? "初回"
+    : `${meta.selected_attempt_index + 1}回目`;
+  return `あり ${totals} / 採用: ${adopted}`;
+}
+
 export function buildSuccessEmbed(result: ExecuteResponse): EmbedBuilder {
   const qc = result.quality_check ?? {};
   const needsRevision = qc.needs_revision ?? false;
@@ -85,6 +95,13 @@ export function buildSuccessEmbed(result: ExecuteResponse): EmbedBuilder {
     value: formatWeakPoints(qc.weak_points),
   });
 
+  if (result.meta?.regenerated) {
+    embed.addFields({
+      name: "再生成",
+      value: formatGenerationMeta(result.meta),
+    });
+  }
+
   const preview = truncate(result.content_preview, 500);
   if (preview) {
     embed.addFields({
@@ -117,6 +134,13 @@ export function buildExecutorErrorEmbed(result: ExecuteResponse): EmbedBuilder {
     embed.addFields({
       name: "weak_points",
       value: formatWeakPoints(qc.weak_points),
+    });
+  }
+
+  if (result.meta?.regenerated) {
+    embed.addFields({
+      name: "再生成",
+      value: formatGenerationMeta(result.meta),
     });
   }
 

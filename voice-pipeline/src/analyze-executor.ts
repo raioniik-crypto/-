@@ -20,6 +20,14 @@ export interface QualityCheck {
   weak_points?: string[];
 }
 
+export interface GenerationMeta {
+  generation_attempts: number;
+  regenerated: boolean;
+  quality_totals: number[];
+  selected_attempt_index: number;
+  selected_total: number;
+}
+
 export interface ExecuteResponse {
   status: "ok" | "error";
   template_type: string;
@@ -27,6 +35,7 @@ export interface ExecuteResponse {
   vault_path: string | null;
   content_preview: string | null;
   quality_check: QualityCheck | null;
+  meta?: GenerationMeta;
   message: string | null;
 }
 
