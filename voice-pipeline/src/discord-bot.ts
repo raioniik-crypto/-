@@ -53,7 +53,33 @@ client.on("interactionCreate", async (interaction) => {
       case "memo":
         await handleMemo(interaction);
         break;
-      // ... 他 case
+      case "job":
+        await handleJob(interaction);
+        break;
+      case "status":
+        await handleStatus(interaction);
+        break;
+      case "recent":
+        await handleRecent(interaction);
+        break;
+      case "retry":
+        await handleRetry(interaction);
+        break;
+      case "jobs":
+        await handleJobs(interaction);
+        break;
+      case "help":
+        await handleHelp(interaction);
+        break;
+      case "artifact":
+        await handleArtifact(interaction);
+        break;
+      case "routine":
+        await handleRoutine(interaction);
+        break;
+      case "retry_routine":
+        await handleRetryRoutine(interaction);
+        break;
       case "capture":
         await handleCapture(interaction);
         break;
@@ -64,7 +90,14 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({ content: "未対応のコマンドです。", ephemeral: true });
     }
   } catch (err: unknown) {
-    // ... エラーハンドリング (既存そのまま)
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[discord-bot] Error in /${interaction.commandName}:`, msg);
+    const reply = { content: `エラーが発生しました: ${msg.slice(0, 200)}`, ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply).catch(() => {});
+    } else {
+      await interaction.reply(reply).catch(() => {});
+    }
   }
 });
 
